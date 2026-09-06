@@ -115,21 +115,6 @@ export class OctokitService {
 
     const cleanToken = token.trim();
 
-    // Support demo/simulated token mode
-    if (cleanToken.startsWith('ghp_demo') || cleanToken.startsWith('gho_oauthToken')) {
-      return {
-        valid: true,
-        user: {
-          login: 'architect-dev',
-          name: 'Gemini Code Architect',
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-          html_url: 'https://github.com/google-gemini',
-          public_repos: 42,
-          scopes: 'repo, read:user, workflow',
-        },
-      };
-    }
-
     try {
       const response = await fetch('https://api.github.com/user', {
         headers: this.getHeaders(cleanToken),
@@ -399,12 +384,6 @@ export class OctokitService {
           // ignore
         }
 
-        // Provide rich fallback dataset if rate-limited or demo mode
-        const fallbackRepos = this.getFallbackOrgRepos(cleanOrg);
-        if (fallbackRepos && fallbackRepos.length > 0) {
-          return { success: true, org: cleanOrg, repos: fallbackRepos };
-        }
-
         return { success: false, org: cleanOrg, error: `GitHub API error (${res.status}): ${err}` };
       }
 
@@ -433,10 +412,6 @@ export class OctokitService {
 
       return { success: true, org: cleanOrg, repos };
     } catch (err: unknown) {
-      const fallbackRepos = this.getFallbackOrgRepos(cleanOrg);
-      if (fallbackRepos && fallbackRepos.length > 0) {
-        return { success: true, org: cleanOrg, repos: fallbackRepos };
-      }
       const msg = err instanceof Error ? err.message : String(err);
       return { success: false, org: cleanOrg, error: msg };
     }
@@ -445,18 +420,6 @@ export class OctokitService {
   public async listUserOrgs(token: string): Promise<{ success: boolean; orgs?: GitHubOrg[]; error?: string }> {
     if (!token) {
       return { success: false, error: 'Token required to fetch user organizations.' };
-    }
-
-    if (token.startsWith('ghp_demo') || token.startsWith('gho_oauthToken')) {
-      return {
-        success: true,
-        orgs: [
-          { login: 'google', id: 1342004, avatar_url: 'https://avatars.githubusercontent.com/u/1342004?v=4', description: 'Google open source projects and tools' },
-          { login: 'angular', id: 139426, avatar_url: 'https://avatars.githubusercontent.com/u/139426?v=4', description: 'Angular web framework organization' },
-          { login: 'facebook', id: 69631, avatar_url: 'https://avatars.githubusercontent.com/u/69631?v=4', description: 'Meta open source software projects' },
-          { login: 'vercel', id: 14985020, avatar_url: 'https://avatars.githubusercontent.com/u/14985020?v=4', description: 'Vercel platform and Next.js framework' },
-        ],
-      };
     }
 
     try {
@@ -494,8 +457,7 @@ export class OctokitService {
       });
 
       if (!res.ok) {
-        const fallbacks = this.getFallbackLabels();
-        return { success: true, labels: fallbacks };
+        return { success: false, labels: [], error: `Failed to fetch repository labels (${res.status})` };
       }
 
       const raw = (await res.json()) as Record<string, unknown>[];
@@ -507,8 +469,9 @@ export class OctokitService {
       }));
 
       return { success: true, labels };
-    } catch {
-      return { success: true, labels: this.getFallbackLabels() };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, labels: [], error: msg };
     }
   }
 
@@ -524,7 +487,7 @@ export class OctokitService {
       });
 
       if (!res.ok) {
-        return { success: true, milestones: this.getFallbackMilestones() };
+        return { success: false, milestones: [], error: `Failed to fetch repository milestones (${res.status})` };
       }
 
       const raw = (await res.json()) as Record<string, unknown>[];
@@ -539,14 +502,10 @@ export class OctokitService {
         due_on: m['due_on'] ? String(m['due_on']) : null,
       }));
 
-      // If GitHub returned empty milestones list, supply common milestone targets
-      if (milestones.length === 0) {
-        return { success: true, milestones: this.getFallbackMilestones() };
-      }
-
       return { success: true, milestones };
-    } catch {
-      return { success: true, milestones: this.getFallbackMilestones() };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, milestones: [], error: msg };
     }
   }
 
@@ -567,8 +526,14 @@ export class OctokitService {
       });
 
       if (!res.ok) {
-        const fallbackPulls = this.getFallbackPulls(owner, repo, options);
-        return { success: true, pulls: fallbackPulls };
+        let err = res.statusText;
+        try {
+          const j = (await res.json()) as { message?: string };
+          if (j.message) err = j.message;
+        } catch {
+          // ignore
+        }
+        return { success: false, pulls: [], error: `GitHub API error (${res.status}): ${err}` };
       }
 
       const rawPulls = (await res.json()) as Record<string, unknown>[];
@@ -643,315 +608,10 @@ export class OctokitService {
       }
 
       return { success: true, pulls };
-    } catch {
-      const fallbackPulls = this.getFallbackPulls(owner, repo, options);
-      return { success: true, pulls: fallbackPulls };
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return { success: false, pulls: [], error: msg };
     }
-  }
-
-  // ==========================================
-  // FALLBACK DATA GENERATORS FOR RESILIENCE
-  // ==========================================
-  private getFallbackOrgRepos(org: string): GitHubRepositoryItem[] {
-    const cleanOrg = org.trim().replace(/^@/, '');
-    const lower = cleanOrg.toLowerCase();
-    if (lower === 'angular') {
-      return [
-        {
-          id: 24195339,
-          name: 'angular',
-          full_name: 'angular/angular',
-          private: false,
-          html_url: 'https://github.com/angular/angular',
-          description: 'Deliver web apps with confidence. Angular framework repository.',
-          language: 'TypeScript',
-          stargazers_count: 96800,
-          forks_count: 25400,
-          open_issues_count: 820,
-          topics: ['angular', 'framework', 'typescript', 'web', 'frontend'],
-          visibility: 'public',
-          updated_at: new Date(Date.now() - 3600000).toISOString(),
-          default_branch: 'main',
-          owner: { login: 'angular', avatar_url: 'https://avatars.githubusercontent.com/u/139426?v=4' },
-        },
-        {
-          id: 34139899,
-          name: 'angular-cli',
-          full_name: 'angular/angular-cli',
-          private: false,
-          html_url: 'https://github.com/angular/angular-cli',
-          description: 'CLI tool for Angular development, scaffolding, and build toolchain.',
-          language: 'TypeScript',
-          stargazers_count: 27100,
-          forks_count: 12300,
-          open_issues_count: 240,
-          topics: ['cli', 'tooling', 'typescript', 'scaffolding'],
-          visibility: 'public',
-          updated_at: new Date(Date.now() - 7200000).toISOString(),
-          default_branch: 'main',
-          owner: { login: 'angular', avatar_url: 'https://avatars.githubusercontent.com/u/139426?v=4' },
-        },
-        {
-          id: 53892842,
-          name: 'components',
-          full_name: 'angular/components',
-          private: false,
-          html_url: 'https://github.com/angular/components',
-          description: 'Component infrastructure and Material Design components for Angular.',
-          language: 'TypeScript',
-          stargazers_count: 24500,
-          forks_count: 6700,
-          open_issues_count: 310,
-          topics: ['material-design', 'angular', 'ui-components', 'cdk'],
-          visibility: 'public',
-          updated_at: new Date(Date.now() - 14400000).toISOString(),
-          default_branch: 'main',
-          owner: { login: 'angular', avatar_url: 'https://avatars.githubusercontent.com/u/139426?v=4' },
-        },
-      ];
-    }
-
-    if (lower === 'google' || lower === 'google-gemini') {
-      return [
-        {
-          id: 74839201,
-          name: 'generative-ai-js',
-          full_name: 'google/generative-ai-js',
-          private: false,
-          html_url: 'https://github.com/google/generative-ai-js',
-          description: 'Google AI JavaScript / TypeScript SDK for Gemini models and multimodality.',
-          language: 'TypeScript',
-          stargazers_count: 14200,
-          forks_count: 1800,
-          open_issues_count: 95,
-          topics: ['gemini', 'generative-ai', 'llm', 'sdk', 'multimodal'],
-          visibility: 'public',
-          updated_at: new Date(Date.now() - 1800000).toISOString(),
-          default_branch: 'main',
-          owner: { login: 'google', avatar_url: 'https://avatars.githubusercontent.com/u/1342004?v=4' },
-        },
-        {
-          id: 23819283,
-          name: 'wire',
-          full_name: 'google/wire',
-          private: false,
-          html_url: 'https://github.com/google/wire',
-          description: 'Automated compile-time Dependency Injection in Go following SOLID patterns.',
-          language: 'Go',
-          stargazers_count: 12500,
-          forks_count: 750,
-          open_issues_count: 42,
-          topics: ['go', 'dependency-injection', 'solid-principles'],
-          visibility: 'public',
-          updated_at: new Date(Date.now() - 86400000).toISOString(),
-          default_branch: 'main',
-          owner: { login: 'google', avatar_url: 'https://avatars.githubusercontent.com/u/1342004?v=4' },
-        },
-      ];
-    }
-
-    // Generic fallback for any other org
-    return [
-      {
-        id: 991001,
-        name: 'core-platform',
-        full_name: `${cleanOrg}/core-platform`,
-        private: false,
-        html_url: `https://github.com/${cleanOrg}/core-platform`,
-        description: `Primary microservices and architecture core platform for ${cleanOrg}.`,
-        language: 'TypeScript',
-        stargazers_count: 3420,
-        forks_count: 620,
-        open_issues_count: 28,
-        topics: ['microservices', 'api', 'solid', 'architecture'],
-        visibility: 'public',
-        updated_at: new Date(Date.now() - 3600000).toISOString(),
-        default_branch: 'main',
-        owner: { login: cleanOrg, avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png' },
-      },
-      {
-        id: 991002,
-        name: 'web-app',
-        full_name: `${cleanOrg}/web-app`,
-        private: false,
-        html_url: `https://github.com/${cleanOrg}/web-app`,
-        description: `Client portal and design system components for ${cleanOrg}.`,
-        language: 'TypeScript',
-        stargazers_count: 1240,
-        forks_count: 190,
-        open_issues_count: 14,
-        topics: ['frontend', 'react', 'tailwind', 'components'],
-        visibility: 'public',
-        updated_at: new Date(Date.now() - 10800000).toISOString(),
-        default_branch: 'main',
-        owner: { login: cleanOrg, avatar_url: 'https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png' },
-      },
-    ];
-  }
-
-  private getFallbackLabels(): GitHubLabel[] {
-    return [
-      { id: 1, name: 'type: bug', color: 'd73a4a', description: "Something isn't working as expected" },
-      { id: 2, name: 'type: feature', color: 'a2eeef', description: 'New feature or enhancement' },
-      { id: 3, name: 'comp: compiler', color: '0075ca', description: 'Compiler, AST parser, and type checker' },
-      { id: 4, name: 'performance', color: 'ffc107', description: 'Optimizations, memory reduction, caching' },
-      { id: 5, name: 'security', color: 'b60205', description: 'Security fixes, auth hardening, CVE remediation' },
-      { id: 6, name: 'solid: refactor', color: '7057ff', description: 'Architectural refactoring & clean code' },
-      { id: 7, name: 'documentation', color: '008672', description: 'Improvements or additions to documentation' },
-      { id: 8, name: 'dependencies', color: '0366d6', description: 'Pull requests that update a dependency file' },
-    ];
-  }
-
-  private getFallbackMilestones(): GitHubMilestone[] {
-    return [
-      {
-        id: 101,
-        number: 1,
-        title: 'v21.0.0 Release',
-        description: 'Next major release featuring zoneless signals, AST optimizations, and strict security rules.',
-        state: 'open',
-        open_issues: 14,
-        closed_issues: 86,
-        due_on: new Date(Date.now() + 86400000 * 30).toISOString(),
-      },
-      {
-        id: 102,
-        number: 2,
-        title: 'v20.3.0 Maintenance',
-        description: 'Patch releases, security hardening, and performance bugfixes.',
-        state: 'open',
-        open_issues: 5,
-        closed_issues: 42,
-        due_on: new Date(Date.now() + 86400000 * 7).toISOString(),
-      },
-      {
-        id: 103,
-        number: 3,
-        title: 'Sprint 48: Performance Sprint',
-        description: 'Reduce diff parsing latency and implement parallel Gemini token stream analyzer.',
-        state: 'open',
-        open_issues: 8,
-        closed_issues: 19,
-        due_on: new Date(Date.now() + 86400000 * 14).toISOString(),
-      },
-    ];
-  }
-
-  private getFallbackPulls(
-    owner: string,
-    repo: string,
-    options: { label?: string; milestone?: string; state?: string }
-  ): GitHubPullRequestSummary[] {
-    const labels = this.getFallbackLabels();
-    const milestones = this.getFallbackMilestones();
-
-    let pulls: GitHubPullRequestSummary[] = [
-      {
-        number: 50124,
-        title: 'feat(compiler): optimize signal dependency tree traversal and graph caching',
-        body: 'Implements memoized AST graph cache to eliminate redundant traversal in high-order template expressions.',
-        state: 'open',
-        html_url: `https://github.com/${owner}/${repo}/pull/50124`,
-        user: { login: 'alex-engineer', avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100' },
-        head: { sha: '9a8b7c6', ref: 'feature/signal-tree-cache', label: 'alex-engineer:feature/signal-tree-cache' },
-        base: { sha: '1a2b3c4', ref: 'main', label: 'main' },
-        created_at: new Date(Date.now() - 3600000 * 4).toISOString(),
-        updated_at: new Date(Date.now() - 1800000).toISOString(),
-        additions: 342,
-        deletions: 89,
-        changed_files: 5,
-        labels: [labels[1], labels[2], labels[3]], // feature, compiler, performance
-        milestone: milestones[0],
-        draft: false,
-      },
-      {
-        number: 50119,
-        title: 'fix(security): sanitize regex pattern input in rule engine validator',
-        body: 'Prevents ReDoS attack vectors when users configure malicious custom regex patterns in policy rules.',
-        state: 'open',
-        html_url: `https://github.com/${owner}/${repo}/pull/50119`,
-        user: { login: 'sarah-secops', avatar_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100' },
-        head: { sha: '4d5e6f7', ref: 'fix/redos-hardening', label: 'sarah-secops:fix/redos-hardening' },
-        base: { sha: '1a2b3c4', ref: 'main', label: 'main' },
-        created_at: new Date(Date.now() - 3600000 * 12).toISOString(),
-        updated_at: new Date(Date.now() - 3600000 * 2).toISOString(),
-        additions: 68,
-        deletions: 14,
-        changed_files: 3,
-        labels: [labels[0], labels[4]], // bug, security
-        milestone: milestones[1],
-        draft: false,
-      },
-      {
-        number: 50098,
-        title: 'refactor(core): decouple notification dispatcher via interface segregation (ISP)',
-        body: 'Splits monolithic notification hub into EmailDispatcher, WebhookDispatcher, and InAppDispatcher.',
-        state: 'open',
-        html_url: `https://github.com/${owner}/${repo}/pull/50098`,
-        user: { login: 'dev-architect', avatar_url: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?w=100' },
-        head: { sha: '7b8c9d0', ref: 'refactor/isp-notification', label: 'dev-architect:refactor/isp-notification' },
-        base: { sha: '1a2b3c4', ref: 'main', label: 'main' },
-        created_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-        updated_at: new Date(Date.now() - 86400000).toISOString(),
-        additions: 195,
-        deletions: 142,
-        changed_files: 7,
-        labels: [labels[5]], // solid: refactor
-        milestone: milestones[2],
-        draft: false,
-      },
-      {
-        number: 50075,
-        title: 'docs: update architectural guidelines for zoneless Angular 21 migrations',
-        body: 'Comprehensive guide explaining migration from zone.js change detection to zoneless signal primitives.',
-        state: 'open',
-        html_url: `https://github.com/${owner}/${repo}/pull/50075`,
-        user: { login: 'emma-techwriter', avatar_url: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100' },
-        head: { sha: '3e4f5a6', ref: 'docs/zoneless-guidelines', label: 'emma-techwriter:docs/zoneless-guidelines' },
-        base: { sha: '1a2b3c4', ref: 'main', label: 'main' },
-        created_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-        updated_at: new Date(Date.now() - 86400000 * 2).toISOString(),
-        additions: 512,
-        deletions: 22,
-        changed_files: 4,
-        labels: [labels[6]], // documentation
-        milestone: milestones[0],
-        draft: false,
-      },
-      {
-        number: 50042,
-        title: 'build(deps): bump @google/genai from 0.1.1 to 0.1.3',
-        body: 'Updates the Google GenAI TypeScript SDK for enhanced streaming speed and model alignment.',
-        state: 'open',
-        html_url: `https://github.com/${owner}/${repo}/pull/50042`,
-        user: { login: 'dependabot[bot]', avatar_url: 'https://avatars.githubusercontent.com/in/29110?v=4' },
-        head: { sha: '2f3a4b5', ref: 'dependabot/npm_and_yarn/google/genai-0.1.3', label: 'dependabot:bump-genai' },
-        base: { sha: '1a2b3c4', ref: 'main', label: 'main' },
-        created_at: new Date(Date.now() - 86400000 * 4).toISOString(),
-        updated_at: new Date(Date.now() - 86400000 * 3).toISOString(),
-        additions: 12,
-        deletions: 12,
-        changed_files: 2,
-        labels: [labels[7]], // dependencies
-        milestone: milestones[1],
-        draft: false,
-      },
-    ];
-
-    if (options.label && options.label.trim() !== '') {
-      const targetLabel = options.label.trim().toLowerCase();
-      pulls = pulls.filter((pr) => pr.labels?.some((l) => l.name.toLowerCase() === targetLabel));
-    }
-
-    if (options.milestone && options.milestone.trim() !== '') {
-      const targetMilestone = options.milestone.trim().toLowerCase();
-      pulls = pulls.filter((pr) => pr.milestone && (
-        pr.milestone.title.toLowerCase() === targetMilestone ||
-        String(pr.milestone.number) === targetMilestone
-      ));
-    }
-
-    return pulls;
   }
 
   public async listUserRepos(
@@ -1037,13 +697,8 @@ export class OctokitService {
     body: string,
     comments: { path: string; position?: number; line?: number; body: string }[]
   ): Promise<{ success: boolean; reviewId?: number; htmlUrl?: string; error?: string }> {
-    if (!token || token.startsWith('ghp_demo') || token.startsWith('gho_oauthToken')) {
-      const simulatedReviewId = Math.floor(Math.random() * 800000) + 100000;
-      return {
-        success: true,
-        reviewId: simulatedReviewId,
-        htmlUrl: `https://github.com/${owner}/${repo}/pull/${pullNumber}#pullrequestreview-${simulatedReviewId}`,
-      };
+    if (!token || token.trim() === '') {
+      return { success: false, error: 'GitHub authentication token is required to submit review comments' };
     }
 
     try {

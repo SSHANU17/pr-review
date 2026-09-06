@@ -34,3 +34,91 @@ export interface GitHubUser {
   html_url: string;
   scopes: string;
 }
+
+export interface CoverityDefectEvent {
+  eventTag: string;
+  eventDescription: string;
+  filePath: string;
+  lineNumber: number;
+}
+
+export interface CoverityDefect {
+  cid: number;
+  checker: string;
+  impact: 'High' | 'Medium' | 'Low';
+  category: string;
+  file: string;
+  line: number;
+  functionName?: string;
+  status: 'New' | 'Triaged' | 'Dismissed' | 'Fixed';
+  description: string;
+  vulnerableSnippet: string;
+  remediationFix: string;
+  events?: CoverityDefectEvent[];
+  cwe?: string;
+}
+
+export interface CoverityStream {
+  id: string;
+  name: string;
+  project: string;
+  branch: string;
+  lastAnalyzed: string;
+  totalDefects: number;
+  highImpactCount: number;
+  mediumImpactCount: number;
+  lowImpactCount: number;
+  defects: CoverityDefect[];
+}
+
+export interface AppScanFinding {
+  id: string;
+  issueType: string;
+  cwe: string;
+  cvssScore: number;
+  severity: 'High' | 'Medium' | 'Low' | 'Information';
+  scannerType: 'SAST' | 'DAST' | 'IAST';
+  fileOrUrl: string;
+  line?: number;
+  threatVector: string;
+  vulnerableSnippet: string;
+  remediationFix: string;
+  status: 'Open' | 'Remediated' | 'False Positive';
+  remediationAdvice?: string;
+}
+
+export interface AppScanReport {
+  id: string;
+  scanName: string;
+  scanType: 'SAST' | 'DAST' | 'IAST';
+  timestamp: string;
+  targetApplication: string;
+  highCount: number;
+  mediumCount: number;
+  lowCount: number;
+  infoCount: number;
+  findings: AppScanFinding[];
+}
+
+export interface SecurityFixRequest {
+  source: 'coverity' | 'appscan' | 'custom';
+  defectId: string | number;
+  checkerOrCwe: string;
+  title: string;
+  file: string;
+  vulnerableCode: string;
+  existingRemediation?: string;
+  contextDiff?: string;
+}
+
+export interface SecurityFixResponse {
+  success: boolean;
+  defectId: string | number;
+  remediatedCode: string;
+  explanation: string;
+  patchDiff: string;
+  cweMitigation: string;
+  confidence?: number;
+  vulnerableCode?: string;
+}
+

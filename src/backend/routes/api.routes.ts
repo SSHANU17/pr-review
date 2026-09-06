@@ -477,49 +477,6 @@ apiRouter.get('/webhook/deliveries', getWebhookHistoryHandler);
 apiRouter.delete('/webhook/history', clearWebhookHistoryHandler);
 apiRouter.delete('/webhook/deliveries', clearWebhookHistoryHandler);
 
-// Webhook Simulation
-const simulateWebhookHandler = async (req: Request, res: Response) => {
-  try {
-    const action = req.body.action || 'opened';
-    const repo = req.body.repoName || req.body.repo || 'acme-corp/financial-core';
-    const prTitle = req.body.prTitle || req.body.title || 'feat: PR #448 - Multi-currency billing gateway';
-    const simulatedSha = 'f9e8d7c' + Math.random().toString(36).substring(2, 8);
-
-    const mockPayload = {
-      action,
-      number: 448,
-      pull_request: {
-        title: prTitle,
-        body: 'Automated PR trigger via webhook simulator with custom rule checks',
-        head: { sha: simulatedSha, ref: 'feature/multi-currency' },
-        base: { sha: 'a1b2c3d4e5f6', ref: 'main' },
-      },
-      repository: { full_name: repo, name: repo.split('/')[1] || repo },
-      sender: { login: 'ci-runner[bot]' },
-    };
-
-    const { delivery, review } = await webhookService.processPullRequestEvent(mockPayload);
-
-    res.json({
-      success: true,
-      simulated: true,
-      action,
-      repository: repo,
-      prNumber: 448,
-      latestCommitSha: simulatedSha,
-      delivery,
-      review,
-      message: `Simulated '${action}' event processed!`,
-    });
-  } catch (error: unknown) {
-    const msg = error instanceof Error ? error.message : 'Simulation failed';
-    res.status(500).json({ error: msg });
-  }
-};
-
-apiRouter.post('/webhook/test-simulate', simulateWebhookHandler);
-apiRouter.post('/webhook/simulate', simulateWebhookHandler);
-
 // GitHub Token Verification & OAuth Endpoints
 const verifyTokenHandler = async (req: Request, res: Response) => {
   const token = req.body.token || '';
@@ -529,7 +486,7 @@ const verifyTokenHandler = async (req: Request, res: Response) => {
       valid: true,
       user: result.user,
       scopes: (result.user as { scopes?: string })?.scopes || 'repo, read:user, workflow',
-      authenticatedVia: token.startsWith('ghp_demo') || token.startsWith('gho_oauthToken') ? 'OAuth Simulated SecretStorage' : 'GitHub REST API',
+      authenticatedVia: 'GitHub REST API',
     });
   } else {
     res.status(401).json({

@@ -6,11 +6,15 @@ An enterprise AI code review extension for Visual Studio Code powered by **Googl
 
 ## 🚀 Features
 
-1. **Autonomous PR Diff Ingestion**: Directly inspects staged git diffs or remote GitHub PR branches.
+1. **Autonomous PR Diff Ingestion**: Directly inspects staged git diffs or falls back to active editor document analysis.
 2. **SOLID & Security Matrix**: Identifies Single Responsibility (SRP) violations, N+1 query loops, SQL injection risks, and deadlocks.
-3. **Dynamic Rule Engine**: Syncs corporate engineering policies and regex AST patterns from your organization.
-4. **Interactive Gutter Glyphs & Inline Decorators**: Hover over flagged lines to inspect explanations and accept 1-click refactored snippets.
-5. **Secure GitHub OAuth & SecretStorage**: Authenticate securely using VS Code's OS-encrypted `SecretStorage` keychain and submit batch reviews directly to GitHub.
+3. **Coverity Static Analysis Integration**: Ingests streams, CIDs, CWE classifications, function-level tracking, and status triage.
+4. **HCL AppScan SAST/DAST Integration**: Synchronizes vulnerability reports, CVSS ratings, threat vectors, and remediation advice.
+5. **Native VS Code Diagnostics (Problems Panel)**: Emits high/medium/low severity diagnostics directly to VS Code's Problems panel with file/line navigation and inline error squiggles.
+6. **1-Click AI Security Remediation (CodeActionProvider)**: Press `Ctrl+.` / `Cmd+.` on any flagged vulnerability to invoke Gemini 3.7 Flash and automatically apply an audited code fix.
+7. **Dynamic Rule Engine**: Syncs corporate engineering policies and regex AST patterns from your organization.
+8. **Interactive Gutter Glyphs & Inline Decorators**: Hover over flagged lines to inspect explanations and accept refactored snippets.
+9. **Secure GitHub OAuth & SecretStorage**: Authenticate securely using VS Code's OS-encrypted `SecretStorage` keychain and submit batch reviews directly to GitHub.
 
 ---
 

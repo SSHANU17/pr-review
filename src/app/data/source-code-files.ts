@@ -343,14 +343,6 @@ app.post('/api/auth/github/verify', async (req, res) => {
     return res.status(400).json({ valid: false, message: 'Token is required' });
   }
 
-  if (token.startsWith('ghp_demo') || token.startsWith('gho_demo')) {
-    return res.json({
-      valid: true,
-      user: { login: 'architect-dev', name: 'Gemini Code Architect', public_repos: 42 },
-      scopes: 'repo, read:user'
-    });
-  }
-
   try {
     const ghRes = await fetch('https://api.github.com/user', {
       headers: { Authorization: \`Bearer \${token}\`, 'User-Agent': 'Gemini-Reviewer-Backend' }

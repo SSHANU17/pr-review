@@ -209,36 +209,6 @@ export class ReviewService {
     return this.http.delete<{ success: boolean; message: string }>('/api/webhook/history');
   }
 
-  public simulateWebhook(
-    action: 'opened' | 'synchronize',
-    customDiff?: string,
-    repoName?: string,
-    prTitle?: string
-  ): Observable<{
-    success: boolean;
-    simulated: boolean;
-    action: string;
-    repository: string;
-    prNumber: number;
-    latestCommitSha: string;
-    review: ReviewResponse;
-  }> {
-    return this.http.post<{
-      success: boolean;
-      simulated: boolean;
-      action: string;
-      repository: string;
-      prNumber: number;
-      latestCommitSha: string;
-      review: ReviewResponse;
-    }>('/api/webhook/test-simulate', {
-      action,
-      customDiff,
-      repoName,
-      prTitle,
-    });
-  }
-
   // ==========================================
   // COVERITY STREAMS & DEFECTS API
   // ==========================================

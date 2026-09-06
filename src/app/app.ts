@@ -536,12 +536,9 @@ export class App implements OnInit {
   // Webhooks CI/CD State
   public readonly webhookDeliveries = signal<WebhookDeliveryLog[]>([]);
   public readonly isLoadingWebhooks = signal<boolean>(false);
-  public readonly isSimulatingWebhook = signal<boolean>(false);
   public readonly selectedWebhookDelivery = signal<WebhookDeliveryLog | null>(null);
-  public readonly webhookSimulatorAction = signal<'opened' | 'synchronize'>('opened');
   public readonly webhookSecretConfigured = signal<boolean>(false);
   public readonly webhookEndpointUrl = signal<string>('');
-  public readonly webhookSimulateSuccess = signal<string | null>(null);
 
   // Filter & Sort Signals
   public readonly selectedCategoryFilter = signal<string>('ALL');
@@ -777,15 +774,7 @@ export class App implements OnInit {
         this.tokenInput.set(savedToken);
         this.verifyTokenAndLoadProfile(savedToken, false);
       } else {
-        // Default demo profile
-        this.authenticatedUser.set({
-          login: 'architect-dev',
-          name: 'Gemini Code Architect',
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-          html_url: 'https://github.com/google-gemini',
-          public_repos: 42,
-          scopes: 'repo, read:user, workflow',
-        });
+        this.authenticatedUser.set(null);
       }
 
       // Initialize responsive viewport state
@@ -1663,33 +1652,6 @@ export class App implements OnInit {
     });
   }
 
-  public simulateWebhookTrigger(action: 'opened' | 'synchronize'): void {
-    this.isSimulatingWebhook.set(true);
-    this.webhookSimulateSuccess.set(null);
-    this.addLog(`[WEBHOOK] Simulating incoming GitHub PR '${action}' webhook event...`);
-
-    const repo = 'acme-corp/financial-core';
-    const title = action === 'opened'
-      ? 'feat: PR #448 - Multi-currency billing gateway'
-      : 'sync: PR #448 - Push commit f9e8d7c with patch';
-
-    this.reviewService.simulateWebhook(action, undefined, repo, title).subscribe({
-      next: (res) => {
-        this.isSimulatingWebhook.set(false);
-        this.webhookSimulateSuccess.set(
-          `Webhook '${action}' processed successfully for commit ${res.latestCommitSha.slice(0, 7)}! Quality Score: ${res.review.score}/100.`
-        );
-        this.addLog(`[WEBHOOK] 200 OK: Triggered Gemini review for commit ${res.latestCommitSha.slice(0, 7)} (${res.review.findings.length} findings)`);
-        this.loadWebhookHistory();
-      },
-      error: (err) => {
-        this.isSimulatingWebhook.set(false);
-        const msg = err.error?.error || err.message || 'Simulation failed';
-        this.addLog(`[WEBHOOK] Error simulating webhook: ${msg}`);
-      },
-    });
-  }
-
   public selectWebhookDelivery(delivery: WebhookDeliveryLog): void {
     this.selectedWebhookDelivery.set(delivery);
   }
@@ -1735,6 +1697,38 @@ export class App implements OnInit {
     if (this.isBrowser && navigator.clipboard) {
       navigator.clipboard.writeText(code);
       this.showFindingToast('info', 'Code snippet copied to clipboard');
+    }
+  }
+
+  public readonly copiedFindingId = signal<string | null>(null);
+
+  public copyFindingToClipboard(finding: EditableFinding): void {
+    if (!finding) return;
+    const comment = finding.userEditedComment || finding.comment || '';
+    const lines = [
+      `[${finding.severity.toUpperCase()}] ${finding.title}`,
+      `File: ${finding.path}:${finding.line} | Category: ${finding.category}`,
+      ``,
+      comment,
+    ];
+    if (finding.suggestedCode) {
+      lines.push(``);
+      lines.push('```');
+      lines.push(finding.suggestedCode);
+      lines.push('```');
+    }
+
+    const payload = lines.join('\n');
+    if (this.isBrowser && navigator.clipboard) {
+      navigator.clipboard.writeText(payload);
+      this.copiedFindingId.set(finding.id);
+      this.showFindingToast('info', `Finding #${finding.id.slice(0, 6)} copied to clipboard for Slack / Jira`);
+      this.addLog(`[CLIPBOARD] Copied finding "${finding.title}" to clipboard`);
+      setTimeout(() => {
+        if (this.copiedFindingId() === finding.id) {
+          this.copiedFindingId.set(null);
+        }
+      }, 2000);
     }
   }
 
@@ -1988,7 +1982,14 @@ export class App implements OnInit {
     }
 
     const repo = this.reviewForm.getRawValue().repoName;
-    const token = this.githubToken();
+    const token = this.githubToken().trim();
+    if (!token) {
+      this.githubPushSuccess.set('Please provide a GitHub Personal Access Token (PAT) with repo scope in settings to submit review comments.');
+      this.addLog('[OCTOKIT] Cannot submit review: GitHub token is required.');
+      this.openOAuthModal();
+      return;
+    }
+
     const prNumber = this.currentPrNumber() || 442;
     const commitId = this.currentCommitSha() || 'HEAD';
 
@@ -2007,7 +2008,7 @@ export class App implements OnInit {
 
     this.reviewService
       .submitReview({
-        token: token || 'ghp_demoToken',
+        token,
         repo,
         pullNumber: prNumber,
         commitId,
@@ -2017,7 +2018,7 @@ export class App implements OnInit {
       .subscribe({
         next: (res) => {
           this.isPushingToGitHub.set(false);
-          const reviewId = res.reviewId || Math.floor(Math.random() * 800000) + 100000;
+          const reviewId = res.reviewId || 1;
           this.githubPushSuccess.set(
             `Successfully posted review #${reviewId} with ${approved.length} approved comments to ${repo} PR #${prNumber}!`
           );
@@ -2027,9 +2028,8 @@ export class App implements OnInit {
           this.isPushingToGitHub.set(false);
           const msg = err.error?.error || err.message || 'Failed to submit review';
           this.addLog(`[OCTOKIT] Review submission failed: ${msg}`);
-          // Fallback message for user
           this.githubPushSuccess.set(
-            `Review submitted (${approved.length} comments posted for PR #${prNumber}).`
+            `Review submission failed: ${msg}`
           );
         },
       });
@@ -2047,35 +2047,9 @@ export class App implements OnInit {
   }
 
   public triggerOAuthFlow(): void {
-    this.isAuthenticatingOAuth.set(true);
-    this.oauthStatusMessage.set('Opening GitHub OAuth authorization window in browser...');
-    this.addLog('[OAUTH] Initiating GitHub OAuth 2.0 flow (client_id: Ov23liDemoGeminiArchitect)...');
-
-    setTimeout(() => {
-      this.oauthStatusMessage.set('Exchanging authorization code via VS Code UriHandler callback...');
-      this.addLog('[OAUTH] Received callback vscode://google-gemini.gemini-pr-code-reviewer/auth-callback');
-    }, 1000);
-
-    setTimeout(() => {
-      this.isAuthenticatingOAuth.set(false);
-      const token = 'gho_oauthToken_' + Math.random().toString(36).substring(2, 12);
-      this.githubToken.set(token);
-      this.tokenInput.set(token);
-      if (this.isBrowser) {
-        localStorage.setItem('gemini_github_token', token);
-      }
-      this.authenticatedUser.set({
-        login: 'architect-dev',
-        name: 'Gemini Code Architect',
-        avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-        html_url: 'https://github.com/google-gemini',
-        public_repos: 42,
-        scopes: 'repo, read:user, workflow',
-      });
-      this.oauthStatusMessage.set('Token successfully stored in encrypted VS Code SecretStorage keychain.');
-      this.addLog('[SECRET_STORAGE] Access token saved securely in OS Keychain');
-      this.addLog('[OCTOKIT] GitHub client re-authenticated as @architect-dev');
-    }, 2000);
+    this.isAuthenticatingOAuth.set(false);
+    this.oauthStatusMessage.set('Please provide your GitHub Personal Access Token (PAT) with "repo" and "read:user" scopes in the field above, then click "Verify & Save Token".');
+    this.addLog('[AUTH] Please enter a valid GitHub PAT in the modal above.');
   }
 
   public setCategoryFilter(cat: string): void {

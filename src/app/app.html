@@ -1629,6 +1629,21 @@
                         <mat-icon class="text-xs">open_in_new</mat-icon>
                       </button>
 
+                      <!-- Copy Finding to Clipboard (for Slack / Jira) -->
+                      <button
+                        type="button"
+                        [id]="'copyFindingBtn_' + finding.id"
+                        (click)="copyFindingToClipboard(finding)"
+                        class="text-neutral-400 hover:text-white p-1 rounded hover:bg-[#333] cursor-pointer flex items-center gap-1 transition-colors"
+                        [class.text-[#7ee787]]="copiedFindingId() === finding.id"
+                        [title]="copiedFindingId() === finding.id ? 'Copied finding to clipboard!' : 'Copy to Clipboard (Slack / Jira)'"
+                      >
+                        <mat-icon class="text-xs">{{ copiedFindingId() === finding.id ? 'check' : 'content_copy' }}</mat-icon>
+                        @if (copiedFindingId() === finding.id) {
+                          <span class="text-[10px] text-[#7ee787] font-sans font-bold">Copied</span>
+                        }
+                      </button>
+
                       <!-- Full Edit Modal -->
                       <button
                         type="button"
@@ -3207,12 +3222,12 @@
             <div class="flex items-center gap-2">
               <button
                 type="button"
-                (click)="simulateWebhookTrigger('opened')"
-                [disabled]="isSimulatingWebhook()"
-                class="bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-md"
+                (click)="loadWebhookHistory()"
+                [disabled]="isLoadingWebhooks()"
+                class="bg-[#21262d] hover:bg-[#30363d] text-white px-3 py-1.5 rounded text-xs font-semibold cursor-pointer flex items-center gap-1.5 border border-[#30363d]"
               >
-                <mat-icon class="text-xs" [class.animate-spin]="isSimulatingWebhook()">{{ isSimulatingWebhook() ? 'refresh' : 'play_arrow' }}</mat-icon>
-                <span>Simulate PR Opened Event</span>
+                <mat-icon class="text-xs" [class.animate-spin]="isLoadingWebhooks()">refresh</mat-icon>
+                <span>Refresh Deliveries</span>
               </button>
             </div>
           </div>
@@ -3256,7 +3271,7 @@
 
           @if (webhookDeliveries().length === 0) {
             <div class="text-center py-8 text-neutral-400 text-xs">
-              No webhook events received yet. Click "Simulate PR Opened Event" above to test the workflow.
+              No webhook events received yet. Configure the webhook payload URL above in your GitHub repository to receive live pull request events.
             </div>
           } @else {
             <div class="space-y-2">
