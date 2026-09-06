@@ -1,0 +1,1562 @@
+<div class="h-screen w-full bg-[#1e1e1e] text-[#cccccc] font-sans flex flex-col overflow-hidden selection:bg-[#0e639c]/40 selection:text-white">
+  <!-- Window IDE Top Header -->
+  <header class="h-9 bg-[#323233] flex items-center px-3 border-b border-[#191919] justify-between select-none shrink-0 z-30">
+    <div class="flex items-center gap-4">
+      <!-- Traffic Light Mac/Window Dots -->
+      <div class="flex items-center gap-1.5">
+        <div class="w-3 h-3 rounded-full bg-[#ff5f56] shadow-sm"></div>
+        <div class="w-3 h-3 rounded-full bg-[#ffbd2e] shadow-sm"></div>
+        <div class="w-3 h-3 rounded-full bg-[#27c93f] shadow-sm"></div>
+      </div>
+      <div class="flex items-center gap-2 text-xs font-medium opacity-90">
+        <mat-icon class="text-sm text-[#007acc]">code</mat-icon>
+        <span class="text-white font-semibold">Gemini PR Architect</span>
+        <span class="opacity-40">•</span>
+        <span class="opacity-70 font-mono text-[11px]">{{ reviewForm.getRawValue().repoName }}</span>
+      </div>
+    </div>
+
+    <!-- Quick Status & Action in Header -->
+    <div class="flex items-center gap-3">
+      <!-- Fetch Live PR Quick Button -->
+      <button
+        type="button"
+        (click)="openImportPrModal()"
+        class="bg-[#238636] hover:bg-[#2ea043] border border-[#2ea043] px-2.5 py-1 rounded text-[11px] font-bold text-white transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+      >
+        <mat-icon class="text-xs">download</mat-icon>
+        <span>Fetch GitHub PR</span>
+      </button>
+
+      <!-- GitHub Auth Status Button in Header -->
+      <button
+        type="button"
+        (click)="openOAuthModal()"
+        class="bg-[#2d2d2d] hover:bg-[#3c3c3c] border border-[#454545] px-2.5 py-1 rounded text-[11px] text-white transition-all cursor-pointer flex items-center gap-1.5 shadow-sm"
+      >
+        <mat-icon class="text-xs text-[#81b88b]">{{ authenticatedUser() ? 'verified_user' : 'key' }}</mat-icon>
+        @if (authenticatedUser()) {
+          <span class="font-mono text-[#81b88b]">@{{ authenticatedUser()!.login }}</span>
+        } @else {
+          <span class="text-[#ffbd2e]">Connect GitHub / Token</span>
+        }
+      </button>
+
+      @if (masterFindings().length > 0) {
+        <button
+          type="button"
+          (click)="pushToGitHub()"
+          [disabled]="isPushingToGitHub()"
+          class="bg-[#0e639c] hover:bg-[#1177bb] disabled:opacity-50 px-3 py-1 rounded text-[10px] font-bold text-white transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+        >
+          <mat-icon class="text-xs" [class.animate-spin]="isPushingToGitHub()">{{ isPushingToGitHub() ? 'refresh' : 'upload' }}</mat-icon>
+          <span>{{ isPushingToGitHub() ? 'PUSHING...' : 'PUSH TO GITHUB (' + totalApprovedCount() + ')' }}</span>
+        </button>
+      }
+      <div class="text-[11px] opacity-60 font-mono">v1.4.0-live</div>
+    </div>
+  </header>
+
+  <!-- IDE Sub-Header Tabs -->
+  <div class="h-9 bg-[#2d2d2d] flex items-center px-3 border-b border-[#191919] gap-1 shrink-0 select-none overflow-x-auto">
+    <button
+      type="button"
+      (click)="setTab('studio')"
+      [class]="activeTab() === 'studio' ? 'bg-[#1e1e1e] text-white border-t-2 border-[#0e639c] font-medium shadow-sm' : 'text-[#cccccc] opacity-60 hover:opacity-100 hover:bg-[#252526]'"
+      class="h-full flex items-center gap-1.5 px-3 text-xs transition-colors cursor-pointer border-r border-[#191919]"
+    >
+      <mat-icon class="text-xs text-[#007acc]">terminal</mat-icon>
+      <span>PR Review Studio</span>
+    </button>
+
+    <button
+      type="button"
+      (click)="setTab('rules')"
+      [class]="activeTab() === 'rules' ? 'bg-[#1e1e1e] text-white border-t-2 border-[#8957e5] font-medium shadow-sm' : 'text-[#cccccc] opacity-60 hover:opacity-100 hover:bg-[#252526]'"
+      class="h-full flex items-center gap-1.5 px-3 text-xs transition-colors cursor-pointer border-r border-[#191919]"
+    >
+      <mat-icon class="text-xs text-[#d2a8ff]">rule</mat-icon>
+      <span>Rule Engine (Policies)</span>
+      @if (activeRulesCount() > 0) {
+        <span class="bg-[#8957e5] text-white text-[9px] px-1.5 py-0.2 rounded-full font-bold">
+          {{ activeRulesCount() }}
+        </span>
+      }
+    </button>
+
+    <button
+      type="button"
+      (click)="setTab('webhooks')"
+      [class]="activeTab() === 'webhooks' ? 'bg-[#1e1e1e] text-white border-t-2 border-[#0e639c] font-medium shadow-sm' : 'text-[#cccccc] opacity-60 hover:opacity-100 hover:bg-[#252526]'"
+      class="h-full flex items-center gap-1.5 px-3 text-xs transition-colors cursor-pointer border-r border-[#191919]"
+    >
+      <mat-icon class="text-xs text-[#58a6ff]">webhook</mat-icon>
+      <span>Webhooks & CI/CD Trigger</span>
+      @if (webhookDeliveries().length > 0) {
+        <span class="bg-[#0e639c] text-white text-[9px] px-1.5 py-0.2 rounded-full font-bold">
+          {{ webhookDeliveries().length }}
+        </span>
+      }
+    </button>
+
+    <button
+      type="button"
+      (click)="setTab('source-code')"
+      [class]="activeTab() === 'source-code' ? 'bg-[#1e1e1e] text-white border-t-2 border-[#0e639c] font-medium shadow-sm' : 'text-[#cccccc] opacity-60 hover:opacity-100 hover:bg-[#252526]'"
+      class="h-full flex items-center gap-1.5 px-3 text-xs transition-colors cursor-pointer border-r border-[#191919]"
+    >
+      <mat-icon class="text-xs text-[#e2c08d]">folder_zip</mat-icon>
+      <span>Production Source Files (11)</span>
+    </button>
+
+    <button
+      type="button"
+      (click)="setTab('architecture')"
+      [class]="activeTab() === 'architecture' ? 'bg-[#1e1e1e] text-white border-t-2 border-[#0e639c] font-medium shadow-sm' : 'text-[#cccccc] opacity-60 hover:opacity-100 hover:bg-[#252526]'"
+      class="h-full flex items-center gap-1.5 px-3 text-xs transition-colors cursor-pointer border-r border-[#191919]"
+    >
+      <mat-icon class="text-xs text-[#81b88b]">account_tree</mat-icon>
+      <span>Architecture & SOLID Matrix</span>
+    </button>
+
+    <button
+      type="button"
+      (click)="setTab('oauth-guide')"
+      [class]="activeTab() === 'oauth-guide' ? 'bg-[#1e1e1e] text-white border-t-2 border-[#0e639c] font-medium shadow-sm' : 'text-[#cccccc] opacity-60 hover:opacity-100 hover:bg-[#252526]'"
+      class="h-full flex items-center gap-1.5 px-3 text-xs transition-colors cursor-pointer border-r border-[#191919]"
+    >
+      <mat-icon class="text-xs text-[#569cd6]">lock_open</mat-icon>
+      <span>GitHub OAuth & SecretStorage</span>
+    </button>
+
+    <button
+      type="button"
+      (click)="setTab('deployment')"
+      [class]="activeTab() === 'deployment' ? 'bg-[#1e1e1e] text-white border-t-2 border-[#0e639c] font-medium shadow-sm' : 'text-[#cccccc] opacity-60 hover:opacity-100 hover:bg-[#252526]'"
+      class="h-full flex items-center gap-1.5 px-3 text-xs transition-colors cursor-pointer border-r border-[#191919]"
+    >
+      <mat-icon class="text-xs text-[#ce9178]">rocket_launch</mat-icon>
+      <span>Setup & F5 Debug Guide</span>
+    </button>
+  </div>
+
+  <!-- MAIN BODY CONTAINER -->
+  <div class="flex flex-1 overflow-hidden relative">
+    <!-- ==================== TAB 1: PR REVIEW STUDIO ==================== -->
+    @if (activeTab() === 'studio') {
+      <!-- Left Sidebar: Repositories & PR Selector -->
+      <aside class="w-64 bg-[#252526] border-r border-[#333333] flex flex-col shrink-0 select-none overflow-hidden">
+        <!-- Active Repository Selector -->
+        <div class="p-3 border-b border-[#333333] space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] uppercase font-bold tracking-wider opacity-50 block">Target Repository</span>
+            <button
+              type="button"
+              (click)="openImportPrModal()"
+              class="text-[10px] text-[#58a6ff] hover:underline flex items-center gap-0.5 cursor-pointer"
+            >
+              <mat-icon class="text-[11px]">sync</mat-icon>
+              <span>Change</span>
+            </button>
+          </div>
+          <div class="bg-[#3c3c3c] p-2 rounded flex items-center justify-between text-xs text-white border border-[#454545]">
+            <span class="truncate font-mono text-[11px]">{{ reviewForm.getRawValue().repoName }}</span>
+            <span class="opacity-50 text-[10px]">▾</span>
+          </div>
+        </div>
+
+        <!-- PR List & Scenarios -->
+        <div class="flex-1 overflow-y-auto p-3 space-y-4">
+          <!-- Fetch PR Callout Button -->
+          <div>
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-[10px] uppercase font-bold tracking-wider opacity-50">Pull Requests</span>
+              <button
+                type="button"
+                (click)="openImportPrModal()"
+                class="bg-[#238636]/20 hover:bg-[#238636]/40 text-[#7ee787] border border-[#238636]/50 px-1.5 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 cursor-pointer"
+              >
+                <mat-icon class="text-[10px]">add</mat-icon>
+                <span>Fetch PR</span>
+              </button>
+            </div>
+
+            <!-- Active PR Presets & Scenarios -->
+            <div class="space-y-1.5">
+              @for (preset of presets; track preset.id) {
+                <button
+                  type="button"
+                  (click)="loadPreset(preset)"
+                  [class]="activePresetId() === preset.id ? 'bg-[#37373d] border-l-2 border-[#0e639c] text-white shadow-sm' : 'hover:bg-[#2a2d2e] opacity-80 hover:opacity-100 text-[#cccccc]'"
+                  class="w-full text-left p-2 rounded text-xs cursor-pointer transition-all border border-transparent hover:border-[#333333]"
+                >
+                  <div class="font-medium truncate text-[11px]">{{ preset.title }}</div>
+                  <div class="text-[10px] opacity-60 font-mono">{{ preset.subtitle }}</div>
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Quick Live PR Samples -->
+          <div class="bg-[#1e1e1e] p-2.5 rounded border border-[#333] space-y-1.5">
+            <span class="text-[10px] uppercase font-bold text-[#58a6ff] flex items-center gap-1">
+              <mat-icon class="text-xs">public</mat-icon> Live GitHub Samples
+            </span>
+            <p class="text-[10px] text-neutral-400 leading-tight">
+              Test live PR fetching directly via GitHub API:
+            </p>
+            <div class="space-y-1 pt-1">
+              <button
+                type="button"
+                (click)="quickFetchSamplePR('https://github.com/angular/angular/pull/50000')"
+                class="w-full text-left px-2 py-1 rounded bg-[#2a2d2e] hover:bg-[#37373d] text-[10px] font-mono text-[#9cdcfe] truncate border border-[#444] cursor-pointer flex items-center gap-1"
+              >
+                <span class="text-[#81b88b]">GET</span> angular/angular #50000
+              </button>
+              <button
+                type="button"
+                (click)="quickFetchSamplePR('https://github.com/facebook/react/pull/28000')"
+                class="w-full text-left px-2 py-1 rounded bg-[#2a2d2e] hover:bg-[#37373d] text-[10px] font-mono text-[#9cdcfe] truncate border border-[#444] cursor-pointer flex items-center gap-1"
+              >
+                <span class="text-[#81b88b]">GET</span> facebook/react #28000
+              </button>
+            </div>
+          </div>
+
+          <!-- Active Rules Enforcement Pill -->
+          <div class="bg-[#1e1e1e] p-2.5 rounded border border-[#333] space-y-1">
+            <div class="flex items-center justify-between">
+              <span class="text-[10px] uppercase font-bold text-[#d2a8ff] flex items-center gap-1">
+                <mat-icon class="text-xs">rule</mat-icon> Rule Engine
+              </span>
+              <span class="text-[9px] bg-[#8957e5]/20 text-[#d2a8ff] px-1.5 py-0.2 rounded font-mono font-bold">
+                {{ activeRulesCount() }} active
+              </span>
+            </div>
+            <p class="text-[10px] text-neutral-400">
+              Custom policies & SOLID rules enforced on every diff review.
+            </p>
+            <button
+              type="button"
+              (click)="setTab('rules')"
+              class="w-full mt-1 bg-[#2d2d2d] hover:bg-[#3c3c3c] text-neutral-300 hover:text-white py-1 rounded text-[10px] border border-[#444] transition-all cursor-pointer flex items-center justify-center gap-1"
+            >
+              <span>Manage & Add Rules</span>
+              <mat-icon class="text-[10px]">arrow_forward</mat-icon>
+            </button>
+          </div>
+
+          <!-- Changed Files in Active PR -->
+          <div>
+            <span class="text-[10px] uppercase font-bold tracking-wider opacity-50 block mb-2">Changed Files ({{ activeChangedFiles().length }})</span>
+            <div class="space-y-1 text-xs font-mono max-h-44 overflow-y-auto">
+              @for (file of activeChangedFiles(); track file.name) {
+                <div class="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-[#2a2d2e] cursor-default" [style.color]="file.color">
+                  <span class="w-3 text-center font-bold text-[11px]">{{ file.status }}</span>
+                  <span class="truncate text-[11px]">{{ file.name }}</span>
+                </div>
+              }
+            </div>
+          </div>
+        </div>
+
+        <!-- Status Pill in Left Sidebar -->
+        <div class="bg-[#007acc] p-2 text-white text-[11px] font-medium flex items-center justify-center gap-2 shrink-0">
+          <span>GEMINI STATUS: {{ backendStatus() === 'connected' ? 'ONLINE' : 'CONNECTING' }}</span>
+          <div class="w-2 h-2 bg-white rounded-full" [class.animate-pulse]="backendStatus() === 'connected'"></div>
+        </div>
+      </aside>
+
+      <!-- Center Main Pane: Code Diff Editor, Interactive Filters, Sorts & Review Comments -->
+      <main class="flex-1 bg-[#1e1e1e] flex flex-col overflow-hidden">
+        <!-- Editor Subheader -->
+        <div class="h-10 bg-[#2d2d2d] flex items-center px-4 border-b border-[#191919] justify-between shrink-0 select-none">
+          <div class="flex items-center gap-2 text-xs">
+            <!-- Mode Switcher Tabs -->
+            <div class="flex items-center bg-[#1e1e1e] p-0.5 rounded border border-[#3c3c3c]">
+              <button
+                type="button"
+                (click)="setCenterTab('syntax-diff')"
+                [class]="activeCenterTab() === 'syntax-diff' ? 'bg-[#007acc] text-white font-bold' : 'text-neutral-400 hover:text-white'"
+                class="px-2.5 py-1 rounded text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <mat-icon class="text-xs">difference</mat-icon>
+                <span>Syntax Diff Viewer</span>
+              </button>
+              <button
+                type="button"
+                (click)="setCenterTab('raw-editor')"
+                [class]="activeCenterTab() === 'raw-editor' ? 'bg-[#007acc] text-white font-bold' : 'text-neutral-400 hover:text-white'"
+                class="px-2.5 py-1 rounded text-xs flex items-center gap-1.5 transition-all cursor-pointer"
+              >
+                <mat-icon class="text-xs">edit_note</mat-icon>
+                <span>Edit Diff & PR Details</span>
+              </button>
+            </div>
+
+            <div class="hidden lg:flex items-center gap-2 pl-3 border-l border-[#3c3c3c] text-[11px] text-neutral-400">
+              <span class="text-white font-mono">{{ reviewForm.getRawValue().repoName }}</span>
+              <span>•</span>
+              <span class="text-[#81b88b] font-semibold">{{ masterFindings().length }} AI comments</span>
+              <span>•</span>
+              <span class="text-[#d2a8ff] font-semibold">{{ activeRulesCount() }} rules enforced</span>
+            </div>
+          </div>
+
+          <!-- Quick Run Trigger & Import -->
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              (click)="openImportPrModal()"
+              class="bg-[#2d2d2d] hover:bg-[#3c3c3c] border border-[#444] text-neutral-200 hover:text-white text-[11px] px-2.5 py-1 rounded flex items-center gap-1 transition-all cursor-pointer"
+            >
+              <mat-icon class="text-xs text-[#58a6ff]">cloud_download</mat-icon>
+              <span>Import GitHub PR</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="runReview()"
+              [disabled]="isReviewing()"
+              class="bg-[#0e639c] hover:bg-[#1177bb] disabled:opacity-50 text-white text-[11px] font-bold px-3 py-1 rounded flex items-center gap-1.5 transition-all cursor-pointer shadow-md"
+            >
+              <mat-icon class="text-xs" [class.animate-spin]="isReviewing()">{{ isReviewing() ? 'refresh' : 'smart_toy' }}</mat-icon>
+              <span>{{ isReviewing() ? 'ANALYZING...' : 'RUN GEMINI REVIEW' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- LIVE GITHUB PR INGESTION BAR -->
+        <div class="bg-[#252526] px-4 py-2 border-b border-[#333] flex flex-wrap items-center justify-between gap-2 text-xs">
+          <div class="flex items-center gap-2 flex-1 min-w-[280px]">
+            <span class="text-[11px] font-bold text-[#81b88b] flex items-center gap-1 shrink-0">
+              <mat-icon class="text-xs">link</mat-icon> GitHub PR:
+            </span>
+            <input
+              type="text"
+              [value]="livePrInput()"
+              (input)="onLivePrInputChange($any($event.target).value)"
+              (keydown.enter)="fetchLivePullRequest()"
+              placeholder="e.g. https://github.com/angular/angular/pull/50000 or facebook/react#28000"
+              class="flex-1 bg-[#1e1e1e] border border-[#3c3c3c] rounded px-2.5 py-1 text-xs text-white placeholder-neutral-500 font-mono focus:border-[#007acc] focus:outline-none"
+            />
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              (click)="fetchLivePullRequest()"
+              [disabled]="isFetchingLivePr()"
+              class="bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white text-xs font-bold px-3 py-1 rounded transition-all cursor-pointer flex items-center gap-1 shadow-sm"
+            >
+              <mat-icon class="text-xs" [class.animate-spin]="isFetchingLivePr()">
+                {{ isFetchingLivePr() ? 'refresh' : 'download' }}
+              </mat-icon>
+              <span>{{ isFetchingLivePr() ? 'Fetching PR...' : 'Fetch & Review' }}</span>
+            </button>
+
+            <button
+              type="button"
+              (click)="openOAuthModal()"
+              title="Configure Personal Access Token for private repositories and rate limits"
+              class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-neutral-300 hover:text-white px-2 py-1 rounded text-xs border border-[#555] flex items-center gap-1 cursor-pointer"
+            >
+              <mat-icon class="text-xs text-[#ffbd2e]">vpn_key</mat-icon>
+              <span>{{ githubToken() ? 'Token Configured' : 'Set GitHub Token' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Success & Error Alert Banners for Live PR -->
+        @if (livePrSuccess()) {
+          <div class="mx-4 mt-3 p-2.5 bg-[#1e3a29] border border-[#2f855a] rounded text-xs text-[#81b88b] flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <mat-icon class="text-sm">check_circle</mat-icon>
+              <span>{{ livePrSuccess() }}</span>
+            </div>
+            <button type="button" (click)="livePrSuccess.set(null)" class="text-[#81b88b] hover:text-white cursor-pointer">
+              <mat-icon class="text-xs">close</mat-icon>
+            </button>
+          </div>
+        }
+
+        @if (livePrError()) {
+          <div class="mx-4 mt-3 p-2.5 bg-[#4a1919] border border-[#c53030] rounded text-xs text-[#ff5f56] flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <mat-icon class="text-sm">error</mat-icon>
+              <div class="space-y-0.5">
+                <div class="font-bold">Failed to fetch Pull Request:</div>
+                <div class="text-[11px] opacity-90">{{ livePrError() }}</div>
+                <div class="text-[10px] text-neutral-300">
+                  Tip: For private repositories or GitHub rate limits (60 req/hr unauthenticated), click <strong>"Set GitHub Token"</strong> to provide a Personal Access Token.
+                </div>
+              </div>
+            </div>
+            <button type="button" (click)="livePrError.set(null)" class="text-[#ff5f56] hover:text-white cursor-pointer">
+              <mat-icon class="text-xs">close</mat-icon>
+            </button>
+          </div>
+        }
+
+        @if (githubPushSuccess()) {
+          <div class="mx-4 mt-3 p-2.5 bg-[#1e3a5f] border border-[#0e639c] rounded text-xs text-[#9cdcfe] flex items-center justify-between">
+            <div class="flex items-center gap-2">
+              <mat-icon class="text-sm">cloud_done</mat-icon>
+              <span>{{ githubPushSuccess() }}</span>
+            </div>
+            <button type="button" (click)="githubPushSuccess.set(null)" class="text-[#9cdcfe] hover:text-white cursor-pointer">
+              <mat-icon class="text-xs">close</mat-icon>
+            </button>
+          </div>
+        }
+
+        <!-- Editor Content Body -->
+        <div [formGroup]="reviewForm" class="flex-1 overflow-y-auto p-4 space-y-4 font-mono text-[13px] leading-relaxed">
+          <!-- PR Details Compact Editor Form -->
+          <div class="bg-[#252526] border border-[#333333] rounded-lg p-3 space-y-2 text-xs font-sans">
+            <div class="flex items-center justify-between text-[11px] text-neutral-400 border-b border-[#333333] pb-1.5">
+              <span class="font-bold uppercase tracking-wider text-[10px] text-neutral-300">Pull Request Details</span>
+              <span class="font-mono text-[10px] text-[#007acc]">{{ reviewForm.getRawValue().repoName }}</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+              <div>
+                <label for="prTitleInputBox" class="text-[10px] opacity-60 uppercase font-bold block mb-1">PR Title</label>
+                <input
+                  id="prTitleInputBox"
+                  type="text"
+                  formControlName="prTitle"
+                  class="w-full bg-[#3c3c3c] border border-[#454545] rounded p-1.5 text-white text-xs focus:border-[#007acc] focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label for="repoNameInputBox" class="text-[10px] opacity-60 uppercase font-bold block mb-1">Target Repository</label>
+                <input
+                  id="repoNameInputBox"
+                  type="text"
+                  formControlName="repoName"
+                  class="w-full bg-[#3c3c3c] border border-[#454545] rounded p-1.5 text-white text-xs font-mono focus:border-[#007acc] focus:outline-none"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Diff Viewer Component (Interactive Color-Coded Syntax Representation) -->
+          @if (activeCenterTab() === 'syntax-diff') {
+            <app-diff-viewer
+              [diffText]="reviewForm.getRawValue().diff"
+              [findings]="filteredFindings()"
+              [activeFindingId]="activeFindingId()"
+              (toggleApproval)="toggleApproval($event)"
+              (updateFindingComment)="onDiffCommentUpdate($event)"
+            />
+          }
+
+          <!-- Raw Diff Editor -->
+          @if (activeCenterTab() === 'raw-editor') {
+            <div class="bg-[#252526] border border-[#333333] rounded-lg p-3 space-y-2 font-sans text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white uppercase text-[10px]">Unified Git Diff Text</span>
+                <span class="text-[10px] text-neutral-400 font-mono">Lines: {{ reviewForm.getRawValue().diff.split('\n').length }}</span>
+              </div>
+              <textarea
+                formControlName="diff"
+                rows="16"
+                class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-3 text-[#d4d4d4] font-mono text-xs focus:border-[#007acc] focus:outline-none leading-relaxed"
+              ></textarea>
+            </div>
+          }
+
+          <!-- Review Summary Banner -->
+          @if (reviewSummary()) {
+            <div class="bg-[#252526] border-l-4 border-l-[#81b88b] border-y border-r border-[#333333] rounded-r p-3 space-y-1 font-sans text-xs">
+              <div class="flex items-center justify-between">
+                <span class="font-bold text-white flex items-center gap-1.5">
+                  <mat-icon class="text-sm text-[#81b88b]">fact_check</mat-icon>
+                  Architectural Review Executive Summary
+                </span>
+                <span class="text-[11px] font-mono font-bold text-[#81b88b]">Health Score: {{ reviewScore() }}/100</span>
+              </div>
+              <p class="text-[#cccccc] text-[11px] leading-relaxed">{{ reviewSummary() }}</p>
+            </div>
+          }
+
+          <!-- Filter & Search Toolbar for Review Comments -->
+          @if (masterFindings().length > 0) {
+            <div class="bg-[#252526] border border-[#333333] rounded-lg p-3 space-y-2.5 font-sans select-none">
+              <div class="flex flex-wrap items-center justify-between gap-2 border-b border-[#333333] pb-2">
+                <div class="flex items-center gap-1 text-xs">
+                  <mat-icon class="text-sm text-[#007acc]">filter_list</mat-icon>
+                  <span class="font-bold text-white">Filter AI Findings</span>
+                  <span class="text-[10px] text-neutral-400">({{ filteredFindings().length }} of {{ masterFindings().length }})</span>
+                </div>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="selectAllFiltered()"
+                    class="bg-[#2d2d2d] hover:bg-[#3c3c3c] border border-[#444] px-2 py-0.5 rounded text-[10px] text-white cursor-pointer"
+                  >
+                    Select All
+                  </button>
+                  <button
+                    type="button"
+                    (click)="deselectAllFiltered()"
+                    class="bg-[#2d2d2d] hover:bg-[#3c3c3c] border border-[#444] px-2 py-0.5 rounded text-[10px] text-white cursor-pointer"
+                  >
+                    Deselect All
+                  </button>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
+                <!-- Search Input -->
+                <div class="relative">
+                  <input
+                    type="text"
+                    [value]="searchQuery()"
+                    (input)="setSearchQuery($any($event.target).value)"
+                    placeholder="Search findings (path, text)..."
+                    class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded px-2.5 py-1 text-xs text-white placeholder-neutral-500 focus:border-[#007acc] focus:outline-none"
+                  />
+                  @if (searchQuery()) {
+                    <button
+                      type="button"
+                      (click)="setSearchQuery('')"
+                      class="absolute right-2 top-1.5 text-neutral-400 hover:text-white cursor-pointer"
+                    >
+                      <mat-icon class="text-xs">close</mat-icon>
+                    </button>
+                  }
+                </div>
+
+                <!-- Category Filter -->
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] opacity-60 uppercase font-bold shrink-0">Category:</span>
+                  <select
+                    [value]="selectedCategoryFilter()"
+                    (change)="setCategoryFilter($any($event.target).value)"
+                    class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded px-2 py-1 text-xs text-white focus:border-[#007acc] focus:outline-none"
+                  >
+                    <option value="ALL">All Categories</option>
+                    <option value="SOLID">SOLID Principles</option>
+                    <option value="SECURITY">Security & Vulnerabilities</option>
+                    <option value="PERFORMANCE">Performance & Leaks</option>
+                    <option value="BUG">Bugs & Edge-Cases</option>
+                    <option value="CLEAN_CODE">Clean Code</option>
+                    <option value="CUSTOM">Custom Policies</option>
+                  </select>
+                </div>
+
+                <!-- Severity Filter -->
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] opacity-60 uppercase font-bold shrink-0">Severity:</span>
+                  <select
+                    [value]="selectedSeverityFilter()"
+                    (change)="setSeverityFilter($any($event.target).value)"
+                    class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded px-2 py-1 text-xs text-white focus:border-[#007acc] focus:outline-none"
+                  >
+                    <option value="ALL">All Severities</option>
+                    <option value="CRITICAL">Critical Only</option>
+                    <option value="WARNING">Warnings Only</option>
+                    <option value="SUGGESTION">Suggestions Only</option>
+                  </select>
+                </div>
+
+                <!-- Sort Order -->
+                <div class="flex items-center gap-1.5">
+                  <span class="text-[10px] opacity-60 uppercase font-bold shrink-0">Sort:</span>
+                  <select
+                    [value]="selectedSortOption()"
+                    (change)="setSortOption($any($event.target).value)"
+                    class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded px-2 py-1 text-xs text-white focus:border-[#007acc] focus:outline-none"
+                  >
+                    <option value="LINE_ASC">Line Number (Asc)</option>
+                    <option value="LINE_DESC">Line Number (Desc)</option>
+                    <option value="SEVERITY_HIGH">Severity (Highest First)</option>
+                    <option value="PATH_AZ">File Path (A-Z)</option>
+                    <option value="CATEGORY">Category</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- Findings Card List -->
+            <div class="space-y-3 font-sans">
+              @for (finding of filteredFindings(); track finding.id) {
+                <div
+                  [id]="'approveCheck_' + finding.id"
+                  class="bg-[#252526] border rounded-lg p-3.5 transition-all space-y-2.5"
+                  [class]="finding.approved ? 'border-[#333333]' : 'border-[#333333] opacity-60 bg-[#1e1e1e]'"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <div class="flex items-center gap-2 flex-wrap">
+                      <input
+                        type="checkbox"
+                        [checked]="finding.approved"
+                        (change)="toggleApproval(finding.id)"
+                        class="w-4 h-4 accent-[#0e639c] cursor-pointer"
+                        title="Include in GitHub PR review"
+                      />
+
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold" [class]="getSeverityBadgeClass(finding.severity)">
+                        {{ finding.severity }}
+                      </span>
+
+                      <span class="px-2 py-0.5 rounded text-[10px] font-mono" [class]="getCategoryBadgeClass(finding.category)">
+                        {{ finding.category }}
+                      </span>
+
+                      <span class="font-bold text-white text-xs">{{ finding.title }}</span>
+                    </div>
+
+                    <div class="flex items-center gap-2 text-xs font-mono text-neutral-400 shrink-0">
+                      <button
+                        type="button"
+                        (click)="jumpToFinding(finding.id)"
+                        class="text-[#58a6ff] hover:underline flex items-center gap-1 cursor-pointer text-[11px]"
+                      >
+                        <span>{{ finding.path }}:{{ finding.line }}</span>
+                        <mat-icon class="text-xs">open_in_new</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- Editable Comment Area -->
+                  <div class="space-y-1">
+                    <textarea
+                      [value]="finding.userEditedComment || finding.comment"
+                      (input)="updateFindingComment(finding.id, $any($event.target).value)"
+                      rows="2"
+                      placeholder="Edit comment before pushing to GitHub..."
+                      class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-xs text-[#cccccc] focus:border-[#007acc] focus:outline-none leading-relaxed"
+                    ></textarea>
+                  </div>
+
+                  <!-- Suggested Code Snippet -->
+                  @if (finding.suggestedCode) {
+                    <div class="space-y-1">
+                      <div class="flex items-center justify-between text-[10px] text-neutral-400 font-mono">
+                        <span class="text-[#81b88b] font-bold">Suggested Refactor:</span>
+                      </div>
+                      <pre class="bg-[#1e1e1e] p-2.5 rounded border border-[#333333] font-mono text-[11px] text-[#9cdcfe] overflow-x-auto leading-relaxed">{{ finding.suggestedCode }}</pre>
+                    </div>
+                  }
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </main>
+    }
+
+    <!-- ==================== TAB 2: RULE ENGINE ==================== -->
+    @if (activeTab() === 'rules') {
+      <div class="flex-1 bg-[#1e1e1e] overflow-y-auto p-6 space-y-6">
+        <!-- Rule Engine Header -->
+        <div class="bg-[#252526] border border-[#333333] rounded-lg p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#333333] pb-4">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <mat-icon class="text-[#d2a8ff]">rule</mat-icon>
+                Enterprise Architectural Policy Engine
+              </h2>
+              <p class="text-xs text-neutral-400 mt-1">
+                Define custom SOLID, security, performance, and code quality policies enforced on every diff evaluation.
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                (click)="resetRulesToDefault()"
+                class="bg-[#2d2d2d] hover:bg-[#3c3c3c] text-neutral-300 hover:text-white border border-[#444] px-3 py-1.5 rounded text-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <mat-icon class="text-xs">restore</mat-icon>
+                <span>Reset to Defaults</span>
+              </button>
+
+              <button
+                type="button"
+                (click)="openCreateRuleModal()"
+                class="bg-[#238636] hover:bg-[#2ea043] text-white px-3.5 py-1.5 rounded text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-md"
+              >
+                <mat-icon class="text-xs">add</mat-icon>
+                <span>Create Custom Rule</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Rules Summary Cards -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div class="bg-[#1e1e1e] p-3 rounded border border-[#333333] space-y-1">
+              <span class="text-[10px] uppercase font-bold text-neutral-400">Total Enforced Policies</span>
+              <div class="text-xl font-bold text-white font-mono">{{ activeRulesCount() }} <span class="text-xs font-normal text-neutral-400">of {{ rules().length }} active</span></div>
+            </div>
+            <div class="bg-[#1e1e1e] p-3 rounded border border-[#333333] space-y-1">
+              <span class="text-[10px] uppercase font-bold text-neutral-400">Security & SOLID Rules</span>
+              <div class="text-xl font-bold text-[#81b88b] font-mono">{{ securityAndSolidRulesCount() }}</div>
+            </div>
+            <div class="bg-[#1e1e1e] p-3 rounded border border-[#333333] space-y-1">
+              <span class="text-[10px] uppercase font-bold text-neutral-400">Performance & Custom</span>
+              <div class="text-xl font-bold text-[#d2a8ff] font-mono">{{ perfAndCleanRulesCount() }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Rules Filter Toolbar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 text-xs">
+          <div class="flex items-center gap-2 flex-1 min-w-[240px]">
+            <input
+              type="text"
+              [value]="ruleSearchQuery()"
+              (input)="setRuleSearchQuery($any($event.target).value)"
+              placeholder="Search policies by title, directive, pattern..."
+              class="w-full bg-[#252526] border border-[#3c3c3c] rounded px-3 py-1.5 text-xs text-white focus:border-[#007acc] focus:outline-none"
+            />
+          </div>
+
+          <div class="flex items-center gap-1.5">
+            <span class="text-[10px] opacity-60 uppercase font-bold">Category:</span>
+            <select
+              [value]="ruleCategoryFilter()"
+              (change)="setRuleCategoryFilter($any($event.target).value)"
+              class="bg-[#252526] border border-[#3c3c3c] rounded px-2.5 py-1.5 text-xs text-white focus:border-[#007acc] focus:outline-none"
+            >
+              <option value="ALL">All Categories</option>
+              <option value="SOLID">SOLID Principles</option>
+              <option value="SECURITY">Security & Vulnerabilities</option>
+              <option value="PERFORMANCE">Performance & Leaks</option>
+              <option value="BUG">Bugs & Edge Cases</option>
+              <option value="CLEAN_CODE">Clean Code</option>
+              <option value="CUSTOM">Custom Organization</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Rules Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+          @for (rule of filteredRules(); track rule.id) {
+            <div
+              class="bg-[#252526] border rounded-lg p-4 space-y-3 transition-all flex flex-col justify-between"
+              [class]="rule.enabled ? 'border-[#3c3c3c]' : 'border-[#333333] opacity-60'"
+            >
+              <div class="space-y-2">
+                <div class="flex items-center justify-between gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="px-2 py-0.5 rounded text-[10px] font-bold" [class]="getSeverityBadgeClass(rule.severity)">
+                      {{ rule.severity }}
+                    </span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-mono" [class]="getCategoryBadgeClass(rule.category)">
+                      {{ rule.category }}
+                    </span>
+                  </div>
+
+                  <!-- Toggle switch -->
+                  <div class="flex items-center gap-1.5">
+                    <input
+                      type="checkbox"
+                      [id]="'rule_toggle_' + rule.id"
+                      [checked]="rule.enabled"
+                      (change)="toggleRuleEnabled(rule)"
+                      class="w-3.5 h-3.5 accent-[#238636] cursor-pointer"
+                    />
+                    <label [for]="'rule_toggle_' + rule.id" class="text-[10px] font-semibold text-neutral-300 cursor-pointer">
+                      {{ rule.enabled ? 'Active' : 'Disabled' }}
+                    </label>
+                  </div>
+                </div>
+
+                <h3 class="font-bold text-white text-sm">{{ rule.title }}</h3>
+                <p class="text-neutral-300 text-xs leading-relaxed">{{ rule.description }}</p>
+
+                @if (rule.pattern) {
+                  <div class="space-y-1">
+                    <span class="text-[10px] text-neutral-400 font-mono uppercase">AST Regex Pattern:</span>
+                    <pre class="bg-[#1e1e1e] p-2 rounded text-[11px] font-mono text-[#7ee787] overflow-x-auto">{{ rule.pattern }}</pre>
+                  </div>
+                }
+
+                @if (rule.suggestedCodeTemplate) {
+                  <div class="space-y-1">
+                    <span class="text-[10px] text-neutral-400 font-mono uppercase">Suggested Refactor Template:</span>
+                    <pre class="bg-[#1e1e1e] p-2 rounded text-[11px] font-mono text-[#9cdcfe] overflow-x-auto">{{ rule.suggestedCodeTemplate }}</pre>
+                  </div>
+                }
+              </div>
+
+              <!-- Rule Actions Footer -->
+              <div class="flex items-center justify-between border-t border-[#333333] pt-3 text-xs">
+                <button
+                  type="button"
+                  (click)="testRuleAgainstCurrentDiff(rule)"
+                  class="text-[#58a6ff] hover:underline flex items-center gap-1 cursor-pointer text-[11px]"
+                >
+                  <mat-icon class="text-xs">play_arrow</mat-icon>
+                  <span>Test on Diff</span>
+                </button>
+
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    (click)="openEditRuleModal(rule)"
+                    class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-white px-2.5 py-1 rounded text-[11px] border border-[#555] cursor-pointer"
+                  >
+                    Edit
+                  </button>
+                  <button
+                    type="button"
+                    (click)="deleteRule(rule)"
+                    class="bg-[#4a1919] hover:bg-[#5a2020] text-[#ff5f56] px-2.5 py-1 rounded text-[11px] border border-[#c53030] cursor-pointer"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- ==================== TAB 3: WEBHOOKS & CI/CD ==================== -->
+    @if (activeTab() === 'webhooks') {
+      <div class="flex-1 bg-[#1e1e1e] overflow-y-auto p-6 space-y-6">
+        <div class="bg-[#252526] border border-[#333333] rounded-lg p-5 space-y-4">
+          <div class="flex flex-wrap items-center justify-between gap-3 border-b border-[#333333] pb-4">
+            <div>
+              <h2 class="text-base font-bold text-white flex items-center gap-2">
+                <mat-icon class="text-[#58a6ff]">webhook</mat-icon>
+                GitHub Webhooks & Automated CI/CD Review Pipeline
+              </h2>
+              <p class="text-xs text-neutral-400 mt-1">
+                Configure your GitHub repository webhook to trigger Gemini AI reviews on <code class="text-[#7ee787]">pull_request.opened</code> and <code class="text-[#7ee787]">synchronize</code> events.
+              </p>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                (click)="simulateWebhookTrigger('opened')"
+                [disabled]="isSimulatingWebhook()"
+                class="bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white px-3 py-1.5 rounded text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-md"
+              >
+                <mat-icon class="text-xs" [class.animate-spin]="isSimulatingWebhook()">{{ isSimulatingWebhook() ? 'refresh' : 'play_arrow' }}</mat-icon>
+                <span>Simulate PR Opened Event</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- Webhook URL Box -->
+          <div class="space-y-1.5">
+            <span class="text-[10px] uppercase font-bold text-neutral-400">Webhook Payload URL (for GitHub Settings &gt; Webhooks)</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                readonly
+                [value]="webhookEndpointUrl()"
+                class="flex-1 bg-[#1e1e1e] border border-[#3c3c3c] rounded px-3 py-2 text-xs font-mono text-[#9cdcfe] select-all"
+              />
+              <button
+                type="button"
+                (click)="copyWebhookUrl()"
+                class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-white px-3 py-2 rounded text-xs border border-[#555] cursor-pointer flex items-center gap-1"
+              >
+                <mat-icon class="text-xs">content_copy</mat-icon>
+                <span>Copy URL</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Webhook Deliveries Log Table -->
+        <div class="bg-[#252526] border border-[#333333] rounded-lg p-5 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="font-bold text-white text-xs uppercase tracking-wider">Recent Webhook Deliveries ({{ webhookDeliveries().length }})</h3>
+            @if (webhookDeliveries().length > 0) {
+              <button
+                type="button"
+                (click)="clearWebhookHistory()"
+                class="text-[11px] text-[#ff5f56] hover:underline cursor-pointer"
+              >
+                Clear History
+              </button>
+            }
+          </div>
+
+          @if (webhookDeliveries().length === 0) {
+            <div class="text-center py-8 text-neutral-400 text-xs">
+              No webhook events received yet. Click "Simulate PR Opened Event" above to test the workflow.
+            </div>
+          } @else {
+            <div class="space-y-2">
+              @for (del of webhookDeliveries(); track del.id) {
+                <div class="bg-[#1e1e1e] border border-[#333] rounded p-3 text-xs flex flex-wrap items-center justify-between gap-3">
+                  <div class="space-y-1">
+                    <div class="flex items-center gap-2">
+                      <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-[#1e3a5f] text-[#58a6ff]">
+                        {{ del.event }}.{{ del.action }}
+                      </span>
+                      <span class="font-bold text-white">{{ del.prTitle }}</span>
+                      <span class="text-neutral-400 font-mono text-[11px]">{{ del.repository }}#{{ del.prNumber }}</span>
+                    </div>
+                    <div class="text-[11px] text-neutral-400 font-mono">
+                      Commit {{ del.headSha.slice(0, 7) }} • Latency: {{ del.executionTimeMs }}ms • Status: {{ del.status }}
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    (click)="loadDeliveryIntoStudio(del)"
+                    class="bg-[#0e639c] hover:bg-[#1177bb] text-white px-3 py-1 rounded text-xs cursor-pointer flex items-center gap-1"
+                  >
+                    <span>Load in Studio</span>
+                    <mat-icon class="text-xs">arrow_forward</mat-icon>
+                  </button>
+                </div>
+              }
+            </div>
+          }
+        </div>
+      </div>
+    }
+
+    <!-- ==================== TAB 4: PRODUCTION SOURCE FILES ==================== -->
+    @if (activeTab() === 'source-code') {
+      <div class="flex-1 bg-[#1e1e1e] flex overflow-hidden">
+        <!-- File list sidebar -->
+        <aside class="w-72 bg-[#252526] border-r border-[#333333] flex flex-col shrink-0 overflow-y-auto">
+          <div class="p-3 border-b border-[#333333] text-[10px] uppercase font-bold text-neutral-400 tracking-wider">
+            Architecture Source Modules ({{ sourceFiles().length }})
+          </div>
+          <div class="p-2 space-y-1">
+            @for (file of sourceFiles(); track file.id) {
+              <button
+                type="button"
+                (click)="selectSourceFile(file.id)"
+                [class]="selectedFileId() === file.id ? 'bg-[#37373d] text-white border-l-2 border-[#0e639c]' : 'text-neutral-400 hover:text-white hover:bg-[#2a2d2e]'"
+                class="w-full text-left p-2 rounded text-xs font-mono truncate transition-all cursor-pointer block"
+              >
+                <div class="font-bold truncate text-[11px] text-[#9cdcfe]">{{ file.path }}</div>
+                <div class="text-[10px] opacity-60 truncate font-sans">{{ file.description }}</div>
+              </button>
+            }
+          </div>
+        </aside>
+
+        <!-- Code Viewer -->
+        <main class="flex-1 bg-[#1e1e1e] flex flex-col overflow-hidden">
+          <div class="h-10 bg-[#2d2d2d] px-4 border-b border-[#333333] flex items-center justify-between shrink-0">
+            <span class="font-mono text-xs text-white">{{ activeSourceFile().path }}</span>
+            <button
+              type="button"
+              (click)="copyFileCode(activeSourceFile().code, activeSourceFile().id)"
+              class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-white px-2.5 py-1 rounded text-xs border border-[#555] cursor-pointer flex items-center gap-1"
+            >
+              <mat-icon class="text-xs">{{ copiedFileId() === activeSourceFile().id ? 'check' : 'content_copy' }}</mat-icon>
+              <span>{{ copiedFileId() === activeSourceFile().id ? 'Copied!' : 'Copy Code' }}</span>
+            </button>
+          </div>
+          <div class="flex-1 overflow-y-auto p-4 font-mono text-xs leading-relaxed text-[#d4d4d4] bg-[#1e1e1e]">
+            <pre>{{ activeSourceFile().code }}</pre>
+          </div>
+        </main>
+      </div>
+    }
+
+    <!-- ==================== TAB 5: ARCHITECTURE & SOLID MATRIX ==================== -->
+    @if (activeTab() === 'architecture') {
+      <div class="flex-1 bg-[#1e1e1e] overflow-y-auto p-6 space-y-6">
+        <div class="bg-[#252526] border border-[#333333] rounded-lg p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-[#333333] pb-3">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <mat-icon class="text-[#81b88b]">account_tree</mat-icon>
+              Architecture & SOLID Design Principles Matrix
+            </h2>
+            <span class="text-[10px] bg-[#3c3c3c] text-[#81b88b] px-2 py-0.5 rounded font-mono">ENTERPRISE AUDIT</span>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="bg-[#1e1e1e] p-4 rounded border border-[#333333] space-y-2">
+              <div class="font-bold text-[#569cd6] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded bg-[#1e3a5f] text-[#569cd6] flex items-center justify-center text-[10px]">S</span>
+                <span>Single Responsibility Principle (SRP)</span>
+              </div>
+              <p class="text-[#cccccc] text-[11px] leading-relaxed">
+                A class should have only one reason to change. The AI highlights god classes and separates concerns (e.g. moving email dispatch out of user registration into a dedicated <code class="text-[#9cdcfe]">NotificationService</code>).
+              </p>
+            </div>
+
+            <div class="bg-[#1e1e1e] p-4 rounded border border-[#333333] space-y-2">
+              <div class="font-bold text-[#569cd6] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded bg-[#1e3a5f] text-[#569cd6] flex items-center justify-center text-[10px]">D</span>
+                <span>Dependency Inversion Principle (DIP)</span>
+              </div>
+              <p class="text-[#cccccc] text-[11px] leading-relaxed">
+                High-level modules should not depend on low-level modules; both should depend on abstractions. Flags direct <code class="text-[#ce9178]">new Class()</code> calls in domain services and recommends Constructor Dependency Injection.
+              </p>
+            </div>
+
+            <div class="bg-[#1e1e1e] p-4 rounded border border-[#333333] space-y-2">
+              <div class="font-bold text-[#ffbd2e] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded bg-[#4a1c1c] text-[#ffbd2e] flex items-center justify-center text-[10px]">P</span>
+                <span>Performance & N+1 Loop Prevention</span>
+              </div>
+              <p class="text-[#cccccc] text-[11px] leading-relaxed">
+                Detects asynchronous operations and database queries inside synchronous loops, recommending batch loading via <code class="text-[#9cdcfe]">Promise.all()</code> or single SQL multi-item fetch queries.
+              </p>
+            </div>
+
+            <div class="bg-[#1e1e1e] p-4 rounded border border-[#333333] space-y-2">
+              <div class="font-bold text-[#ff5f56] flex items-center gap-1.5">
+                <span class="w-5 h-5 rounded bg-[#4a1919] text-[#ff5f56] flex items-center justify-center text-[10px]">X</span>
+                <span>Security & SQL Injection (CWE-89)</span>
+              </div>
+              <p class="text-[#cccccc] text-[11px] leading-relaxed">
+                Flags raw SQL string concatenations and template literals in query arguments, enforcing parameterized queries or ORM queries.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ==================== TAB 6: GITHUB OAUTH & SECRETSTORAGE GUIDE ==================== -->
+    @if (activeTab() === 'oauth-guide') {
+      <div class="flex-1 bg-[#1e1e1e] overflow-y-auto p-6 space-y-6">
+        <div class="bg-[#252526] border border-[#333333] rounded-lg p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-[#333333] pb-3">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <mat-icon class="text-[#569cd6]">lock_open</mat-icon>
+              GitHub OAuth 2.0 & VS Code SecretStorage Integration
+            </h2>
+            <span class="text-[10px] bg-[#3c3c3c] text-[#81b88b] px-2 py-0.5 rounded font-mono">OAUTH RFC 6749</span>
+          </div>
+
+          <div class="space-y-4 text-xs">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div class="bg-[#1e1e1e] p-3.5 rounded border border-[#333] space-y-1.5">
+                <div class="font-bold text-[#81b88b] flex items-center gap-1">
+                  <mat-icon class="text-xs">security</mat-icon>
+                  <span>SecretStorage vs Settings JSON</span>
+                </div>
+                <p class="text-[11px] opacity-80 leading-relaxed">
+                  Plain <code class="text-[#9cdcfe]">settings.json</code> stores credentials unencrypted on disk, risking accidental git commits. <code class="text-[#9cdcfe]">SecretStorage</code> uses native macOS Keychain, Windows Credential Manager, or Linux Secret Service (libsecret).
+                </p>
+              </div>
+
+              <div class="bg-[#1e1e1e] p-3.5 rounded border border-[#333] space-y-1.5">
+                <div class="font-bold text-[#e2c08d] flex items-center gap-1">
+                  <mat-icon class="text-xs">shield</mat-icon>
+                  <span>Backend Token Validation</span>
+                </div>
+                <p class="text-[11px] opacity-80 leading-relaxed">
+                  The Node.js backend validates incoming authorization tokens via <code class="text-[#9cdcfe]">POST /api/auth/github/verify</code> to verify user identity, rate-limit headers, and repository permissions before executing sensitive operations.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+
+    <!-- ==================== TAB 7: SETUP & DEPLOYMENT GUIDE ==================== -->
+    @if (activeTab() === 'deployment') {
+      <div class="flex-1 bg-[#1e1e1e] overflow-y-auto p-6 space-y-6">
+        <div class="bg-[#252526] border border-[#333333] rounded-lg p-5 space-y-4">
+          <div class="flex items-center justify-between border-b border-[#333333] pb-3">
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              <mat-icon class="text-[#007acc]">rocket_launch</mat-icon>
+              Production Setup & VS Code F5 Debugging Guide
+            </h2>
+            <span class="text-[10px] bg-[#3c3c3c] text-[#81b88b] px-2 py-0.5 rounded font-mono">READY TO RUN</span>
+          </div>
+
+          <div class="space-y-4">
+            <div class="bg-[#1e1e1e] border border-[#333333] rounded p-4 space-y-2">
+              <div class="flex items-center gap-2 text-xs font-bold text-white">
+                <span class="w-5 h-5 rounded bg-[#0e639c] flex items-center justify-center text-[10px]">1</span>
+                <span>Configure Google AI Studio API Key & Start Backend</span>
+              </div>
+              <pre class="bg-[#252526] p-3 rounded font-mono text-[11px] text-[#9cdcfe] leading-relaxed border border-[#333333]">
+cd backend
+npm install
+export GEMINI_API_KEY="AIzaSyYourGoogleAIStudioKeyHere"
+npm run dev
+# Backend listening on http://localhost:4000
+</pre>
+            </div>
+
+            <div class="bg-[#1e1e1e] border border-[#333333] rounded p-4 space-y-2">
+              <div class="flex items-center gap-2 text-xs font-bold text-white">
+                <span class="w-5 h-5 rounded bg-[#0e639c] flex items-center justify-center text-[10px]">2</span>
+                <span>Compile the VS Code Extension</span>
+              </div>
+              <pre class="bg-[#252526] p-3 rounded font-mono text-[11px] text-[#9cdcfe] leading-relaxed border border-[#333333]">
+cd ../vscode-plugin
+npm install
+npm run compile
+</pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- ==================== IMPORT PULL REQUEST MODAL ==================== -->
+  @if (isImportPrModalOpen()) {
+    <div class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-[#252526] border border-[#454545] rounded-xl w-full max-w-xl shadow-2xl overflow-hidden font-sans text-xs flex flex-col max-h-[90vh]">
+        <!-- Modal Header -->
+        <div class="bg-[#323233] px-5 py-3.5 border-b border-[#333] flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2 font-bold text-white text-sm">
+            <mat-icon class="text-base text-[#58a6ff]">cloud_download</mat-icon>
+            <span>Fetch Pull Request from GitHub</span>
+          </div>
+          <button
+            type="button"
+            (click)="closeImportPrModal()"
+            class="text-[#cccccc] hover:text-white cursor-pointer"
+          >
+            <mat-icon class="text-sm">close</mat-icon>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-5 space-y-4 overflow-y-auto flex-1">
+          <!-- Direct PR URL Input -->
+          <div class="space-y-1.5">
+            <label for="modalPrUrlInput" class="text-[10px] uppercase font-bold text-neutral-300 block">
+              GitHub Pull Request URL or Target (Public or Private with Token)
+            </label>
+            <div class="flex items-center gap-2">
+              <input
+                id="modalPrUrlInput"
+                type="text"
+                [value]="livePrInput()"
+                (input)="onLivePrInputChange($any($event.target).value)"
+                (keydown.enter)="fetchLivePullRequest()"
+                placeholder="e.g. https://github.com/angular/angular/pull/50000 or facebook/react#28000"
+                class="flex-1 bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-white font-mono text-xs focus:border-[#007acc] focus:outline-none"
+              />
+              <button
+                type="button"
+                (click)="fetchLivePullRequest()"
+                [disabled]="isFetchingLivePr()"
+                class="bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white font-bold px-4 py-2 rounded text-xs cursor-pointer flex items-center gap-1.5 shadow-md"
+              >
+                <mat-icon class="text-xs" [class.animate-spin]="isFetchingLivePr()">
+                  {{ isFetchingLivePr() ? 'refresh' : 'download' }}
+                </mat-icon>
+                <span>{{ isFetchingLivePr() ? 'Fetching...' : 'Fetch PR' }}</span>
+              </button>
+            </div>
+            <p class="text-[10px] text-neutral-400">
+              Supports full URLs (<code class="text-[#9cdcfe]">https://github.com/owner/repo/pull/123</code>) or shorthand (<code class="text-[#9cdcfe]">owner/repo#123</code>).
+            </p>
+          </div>
+
+          <!-- Quick Samples Selector -->
+          <div class="space-y-1.5 pt-2 border-t border-[#333]">
+            <span class="text-[10px] uppercase font-bold text-neutral-400">Quick Test Pull Requests (Live Open Source)</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <button
+                type="button"
+                (click)="selectRepoPr({ number: 50000, title: 'feat(compiler): optimize standalone hydration AST', body: 'Improves SSR rendering speed and reduces hydration memory footprint.', state: 'open', html_url: 'https://github.com/angular/angular/pull/50000', user: { login: 'alxhub', avatar_url: '' }, head: { sha: 'a1b2c3d', ref: 'feature/ssr-ast', label: 'angular:feature' }, base: { sha: 'main', ref: 'main', label: 'angular:main' }, created_at: '', updated_at: '' }, 'angular/angular')"
+                class="bg-[#1e1e1e] hover:bg-[#2d2d2d] border border-[#3c3c3c] p-2.5 rounded text-left transition-all cursor-pointer"
+              >
+                <div class="font-bold text-white text-[11px] truncate">angular/angular #50000</div>
+                <div class="text-[10px] text-[#81b88b] truncate">Compiler Standalone Hydration</div>
+              </button>
+
+              <button
+                type="button"
+                (click)="selectRepoPr({ number: 28000, title: 'fix(scheduler): prevent race condition in microtasks', body: 'Ensures microtasks are drained in order before rendering pass.', state: 'open', html_url: 'https://github.com/facebook/react/pull/28000', user: { login: 'acdlite', avatar_url: '' }, head: { sha: 'f9e8d7c', ref: 'fix/microtask-race', label: 'react:fix' }, base: { sha: 'main', ref: 'main', label: 'react:main' }, created_at: '', updated_at: '' }, 'facebook/react')"
+                class="bg-[#1e1e1e] hover:bg-[#2d2d2d] border border-[#3c3c3c] p-2.5 rounded text-left transition-all cursor-pointer"
+              >
+                <div class="font-bold text-white text-[11px] truncate">facebook/react #28000</div>
+                <div class="text-[10px] text-[#81b88b] truncate">Scheduler Race Condition Fix</div>
+              </button>
+            </div>
+          </div>
+
+          <!-- Browse Repository PRs -->
+          <div class="space-y-2 pt-2 border-t border-[#333]">
+            <span class="text-[10px] uppercase font-bold text-neutral-400">Search Open PRs in Any Repository</span>
+            <div class="flex items-center gap-2">
+              <input
+                type="text"
+                [value]="repoSearchQuery()"
+                (input)="repoSearchQuery.set($any($event.target).value)"
+                (keydown.enter)="loadRepoPullRequests(repoSearchQuery())"
+                placeholder="e.g. facebook/react, vercel/next.js, or your-org/your-repo"
+                class="flex-1 bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-white font-mono text-xs focus:border-[#007acc] focus:outline-none"
+              />
+              <button
+                type="button"
+                (click)="loadRepoPullRequests(repoSearchQuery())"
+                [disabled]="isLoadingRepoPrs()"
+                class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-white px-3 py-2 rounded text-xs border border-[#555] cursor-pointer flex items-center gap-1"
+              >
+                <mat-icon class="text-xs" [class.animate-spin]="isLoadingRepoPrs()">
+                  {{ isLoadingRepoPrs() ? 'refresh' : 'search' }}
+                </mat-icon>
+                <span>Search PRs</span>
+              </button>
+            </div>
+
+            @if (repoPullRequests().length > 0) {
+              <div class="max-h-48 overflow-y-auto space-y-1.5 pt-1">
+                @for (pr of repoPullRequests(); track pr.number) {
+                  <button
+                    type="button"
+                    (click)="selectRepoPr(pr, repoSearchQuery())"
+                    class="w-full text-left bg-[#1e1e1e] hover:bg-[#2d2d2d] border border-[#3c3c3c] p-2 rounded cursor-pointer transition-all flex items-center justify-between"
+                  >
+                    <div class="truncate mr-2">
+                      <div class="font-bold text-white text-[11px] truncate">#{{ pr.number }}: {{ pr.title }}</div>
+                      <div class="text-[10px] opacity-60">by @{{ pr.user.login }} • {{ pr.state }}</div>
+                    </div>
+                    <span class="bg-[#0e639c] hover:bg-[#1177bb] text-white px-2 py-0.5 rounded text-[10px] shrink-0 font-bold">
+                      Fetch
+                    </span>
+                  </button>
+                }
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="bg-[#323233] px-5 py-3 border-t border-[#333] flex justify-end shrink-0">
+          <button
+            type="button"
+            (click)="closeImportPrModal()"
+            class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-white px-4 py-1.5 rounded text-xs cursor-pointer border border-[#555]"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ==================== GITHUB TOKEN & OAUTH MODAL ==================== -->
+  @if (isOAuthModalOpen()) {
+    <div class="fixed inset-0 bg-black/75 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-[#252526] border border-[#454545] rounded-xl w-full max-w-lg shadow-2xl overflow-hidden font-sans text-xs">
+        <!-- Modal Header -->
+        <div class="bg-[#323233] px-4 py-3 border-b border-[#333] flex items-center justify-between">
+          <div class="flex items-center gap-2 font-bold text-white text-sm">
+            <mat-icon class="text-base text-[#569cd6]">key</mat-icon>
+            <span>GitHub Authentication & Personal Access Token</span>
+          </div>
+          <button
+            type="button"
+            (click)="closeOAuthModal()"
+            class="text-[#cccccc] hover:text-white cursor-pointer"
+          >
+            <mat-icon class="text-sm">close</mat-icon>
+          </button>
+        </div>
+
+        <!-- Modal Body -->
+        <div class="p-5 space-y-4">
+          <!-- Active Account Card if logged in -->
+          @if (authenticatedUser()) {
+            <div class="bg-[#1e1e1e] border border-[#81b88b]/40 rounded-lg p-3 flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <img
+                  [src]="authenticatedUser()!.avatar_url"
+                  alt="Avatar"
+                  referrerpolicy="no-referrer"
+                  class="w-10 h-10 rounded-full border border-[#81b88b]"
+                />
+                <div>
+                  <div class="font-bold text-white text-xs">{{ authenticatedUser()!.name }}</div>
+                  <div class="text-[11px] font-mono text-[#81b88b]">@{{ authenticatedUser()!.login }} (Connected)</div>
+                  <div class="text-[10px] opacity-60">Repos: {{ authenticatedUser()!.public_repos }} • Scopes: {{ authenticatedUser()!.scopes || 'repo, read:user' }}</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                (click)="logoutGitHub()"
+                class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-[#ff5f56] px-3 py-1 rounded text-[11px] border border-[#555] cursor-pointer"
+              >
+                Disconnect
+              </button>
+            </div>
+          }
+
+          <!-- SECTION 1: Personal Access Token (PAT) Input -->
+          <div class="space-y-2 bg-[#1e1e1e] p-3.5 rounded border border-[#333]">
+            <div class="flex items-center justify-between">
+              <label for="patTokenInput" class="text-[10px] uppercase font-bold text-[#81b88b] flex items-center gap-1">
+                <mat-icon class="text-xs">vpn_key</mat-icon>
+                <span>GitHub Personal Access Token (PAT)</span>
+              </label>
+              <a
+                href="https://github.com/settings/tokens/new?scopes=repo,read:user&description=Gemini+PR+Architect+Reviewer"
+                target="_blank"
+                rel="noreferrer"
+                class="text-[10px] text-[#58a6ff] hover:underline flex items-center gap-0.5"
+              >
+                <span>Generate on GitHub</span>
+                <mat-icon class="text-[10px]">open_in_new</mat-icon>
+              </a>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <input
+                id="patTokenInput"
+                type="password"
+                [value]="tokenInput()"
+                (input)="onTokenInputChange($any($event.target).value)"
+                (keydown.enter)="saveAndVerifyToken()"
+                placeholder="Paste ghp_... or github_pat_..."
+                class="flex-1 bg-[#252526] border border-[#454545] rounded p-2 text-white font-mono text-xs focus:border-[#007acc] focus:outline-none"
+              />
+              <button
+                type="button"
+                (click)="saveAndVerifyToken()"
+                [disabled]="isVerifyingToken()"
+                class="bg-[#238636] hover:bg-[#2ea043] disabled:opacity-50 text-white font-bold px-3 py-2 rounded text-xs cursor-pointer flex items-center gap-1 shadow-sm"
+              >
+                <mat-icon class="text-xs" [class.animate-spin]="isVerifyingToken()">
+                  {{ isVerifyingToken() ? 'refresh' : 'check' }}
+                </mat-icon>
+                <span>{{ isVerifyingToken() ? 'Verifying...' : 'Save & Verify' }}</span>
+              </button>
+            </div>
+            <p class="text-[10px] text-neutral-400">
+              Required for fetching private repositories and exceeding unauthenticated API rate limits.
+            </p>
+          </div>
+
+          <!-- Status / Progress Feedback -->
+          @if (tokenVerificationMessage()) {
+            <div
+              class="p-2.5 rounded text-[11px] font-mono flex items-center gap-2"
+              [class]="tokenVerificationMessage()!.type === 'success' ? 'bg-[#1e3a29] text-[#81b88b] border border-[#2f855a]' : 'bg-[#4a1919] text-[#ff5f56] border border-[#c53030]'"
+            >
+              <mat-icon class="text-xs">{{ tokenVerificationMessage()!.type === 'success' ? 'check_circle' : 'error' }}</mat-icon>
+              <span>{{ tokenVerificationMessage()!.text }}</span>
+            </div>
+          }
+
+          <!-- SECTION 2: OAuth 2.0 Flow simulation -->
+          <div class="space-y-2 pt-2 border-t border-[#333]">
+            <span class="text-[10px] uppercase font-bold opacity-60 block">OAuth 2.0 Integration</span>
+            <button
+              type="button"
+              (click)="triggerOAuthFlow()"
+              [disabled]="isAuthenticatingOAuth()"
+              class="w-full bg-[#3c3c3c] hover:bg-[#4a4a4a] disabled:opacity-50 text-white py-2 rounded text-xs font-semibold transition-all cursor-pointer flex items-center justify-center gap-2 border border-[#555]"
+            >
+              <mat-icon class="text-sm" [class.animate-spin]="isAuthenticatingOAuth()">
+                {{ isAuthenticatingOAuth() ? 'hourglass_top' : 'launch' }}
+              </mat-icon>
+              <span>{{ isAuthenticatingOAuth() ? 'Authorizing with GitHub...' : 'Authorize via GitHub OAuth 2.0' }}</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="bg-[#323233] px-4 py-2.5 border-t border-[#333] flex justify-end">
+          <button
+            type="button"
+            (click)="closeOAuthModal()"
+            class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-white px-4 py-1 rounded text-xs cursor-pointer border border-[#555]"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- ==================== CREATE / EDIT RULE MODAL ==================== -->
+  @if (isRuleModalOpen()) {
+    <div class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div class="bg-[#252526] border border-[#454545] rounded-xl w-full max-w-xl shadow-2xl overflow-hidden font-sans text-xs flex flex-col max-h-[90vh]">
+        <!-- Modal Header -->
+        <div class="bg-[#323233] px-5 py-3.5 border-b border-[#333] flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-2 font-bold text-white text-sm">
+            <mat-icon class="text-base text-[#d2a8ff]">rule</mat-icon>
+            <span>{{ editingRuleId() ? 'Edit Architectural Rule / Policy' : 'Create New Architectural Rule' }}</span>
+          </div>
+          <button
+            type="button"
+            (click)="closeRuleModal()"
+            class="text-[#cccccc] hover:text-white cursor-pointer"
+          >
+            <mat-icon class="text-sm">close</mat-icon>
+          </button>
+        </div>
+
+        <!-- Modal Body Form -->
+        <div [formGroup]="ruleForm" class="p-5 space-y-4 overflow-y-auto flex-1">
+          <!-- Title Input -->
+          <div>
+            <label for="ruleTitleInput" class="text-[10px] uppercase font-bold text-neutral-300 block mb-1">
+              Rule Title <span class="text-[#ff5f56]">*</span>
+            </label>
+            <input
+              id="ruleTitleInput"
+              type="text"
+              formControlName="title"
+              placeholder="e.g. Prohibit Raw SQL Concatenation or Require Try/Catch in Async Handlers"
+              class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-white text-xs focus:border-[#007acc] focus:outline-none"
+            />
+          </div>
+
+          <!-- Category & Severity Selection -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label for="ruleCategorySelect" class="text-[10px] uppercase font-bold text-neutral-300 block mb-1">Category</label>
+              <select
+                id="ruleCategorySelect"
+                formControlName="category"
+                class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-white text-xs focus:border-[#007acc] focus:outline-none"
+              >
+                <option value="SOLID">SOLID Principles</option>
+                <option value="SECURITY">Security & Vulnerabilities</option>
+                <option value="PERFORMANCE">Performance & Leaks</option>
+                <option value="BUG">Bugs & Reliability</option>
+                <option value="CLEAN_CODE">Clean Code</option>
+                <option value="CUSTOM">Custom Organization Policy</option>
+              </select>
+            </div>
+
+            <div>
+              <label for="ruleSeveritySelect" class="text-[10px] uppercase font-bold text-neutral-300 block mb-1">Severity Level</label>
+              <select
+                id="ruleSeveritySelect"
+                formControlName="severity"
+                class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-white text-xs focus:border-[#007acc] focus:outline-none"
+              >
+                <option value="CRITICAL">CRITICAL (Block PR / Failure)</option>
+                <option value="WARNING">WARNING (Recommended Fix)</option>
+                <option value="SUGGESTION">SUGGESTION (Optional Refactor)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Description / Directive -->
+          <div>
+            <label for="ruleDescriptionInput" class="text-[10px] uppercase font-bold text-neutral-300 block mb-1">
+              Policy Directive / Explanation <span class="text-[#ff5f56]">*</span>
+            </label>
+            <textarea
+              id="ruleDescriptionInput"
+              formControlName="description"
+              rows="3"
+              placeholder="Explain the architectural risk and exact constraint for Gemini AI and developers to follow..."
+              class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-white text-xs focus:border-[#007acc] focus:outline-none leading-relaxed"
+            ></textarea>
+          </div>
+
+          <!-- AST Regex Pattern (Optional) -->
+          <div>
+            <div class="flex items-center justify-between mb-1">
+              <label for="rulePatternInput" class="text-[10px] uppercase font-bold text-neutral-300">
+                AST Regex Pattern / Keyword (Optional)
+              </label>
+              <span class="text-[9px] text-neutral-400 font-mono">Matched against added (+) diff lines</span>
+            </div>
+            <input
+              id="rulePatternInput"
+              type="text"
+              formControlName="pattern"
+              placeholder="e.g. console\.(log|debug)|SELECT.*(\+|\$\{)|new\s+\w+Service\("
+              class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-[#7ee787] font-mono text-xs focus:border-[#007acc] focus:outline-none"
+            />
+          </div>
+
+          <!-- Suggested Code Snippet Template -->
+          <div>
+            <label for="ruleSnippetInput" class="text-[10px] uppercase font-bold text-neutral-300 block mb-1">
+              Suggested Refactored Fix Template (Optional)
+            </label>
+            <textarea
+              id="ruleSnippetInput"
+              formControlName="suggestedCodeTemplate"
+              rows="3"
+              placeholder="Provide standard clean code snippet solving this policy violation..."
+              class="w-full bg-[#1e1e1e] border border-[#3c3c3c] rounded p-2 text-[#9cdcfe] font-mono text-xs focus:border-[#007acc] focus:outline-none leading-relaxed"
+            ></textarea>
+          </div>
+
+          <!-- Enabled Toggle Switch -->
+          <div class="flex items-center gap-2 pt-1">
+            <input
+              type="checkbox"
+              id="ruleEnabledSwitch"
+              formControlName="enabled"
+              class="w-4 h-4 accent-[#238636] cursor-pointer"
+            />
+            <label for="ruleEnabledSwitch" class="text-xs font-semibold text-white cursor-pointer select-none">
+              Activate rule immediately for automated reviews & PR checks
+            </label>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="bg-[#323233] px-5 py-3 border-t border-[#333] flex items-center justify-between shrink-0">
+          <button
+            type="button"
+            (click)="closeRuleModal()"
+            class="bg-[#3c3c3c] hover:bg-[#4a4a4a] text-white px-4 py-1.5 rounded text-xs cursor-pointer border border-[#555]"
+          >
+            Cancel
+          </button>
+
+          <button
+            type="button"
+            (click)="saveRule()"
+            class="bg-[#238636] hover:bg-[#2ea043] text-white px-5 py-1.5 rounded text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 shadow-md"
+          >
+            <mat-icon class="text-xs">check</mat-icon>
+            <span>{{ editingRuleId() ? 'Update Policy' : 'Save & Enforce Rule' }}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Bottom IDE Status Bar (High Density Theme) -->
+  <footer class="h-6 bg-[#007acc] text-white flex items-center px-3 justify-between text-[11px] shrink-0 select-none z-30 font-sans">
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-1">
+        <span class="opacity-70 font-mono font-bold">&lt;/&gt;</span>
+        <span>TypeScript</span>
+      </div>
+      <div class="flex items-center gap-1">
+        <span class="opacity-70 font-mono font-bold">Ln 44, Col 1</span>
+      </div>
+      <div class="hidden sm:flex items-center gap-1 opacity-80">
+        <span>UTF-8</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-4">
+      <div class="flex items-center gap-1.5">
+        <span class="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+        <span>Gemini 3.7 Flash</span>
+      </div>
+      <div class="hidden sm:flex items-center gap-1 opacity-90">
+        <mat-icon class="text-xs">rule</mat-icon>
+        <span>{{ activeRulesCount() }} Rules Enforced</span>
+      </div>
+      <div class="hidden sm:flex items-center gap-1 opacity-90">
+        <mat-icon class="text-xs">security</mat-icon>
+        <span>GitHub: {{ authenticatedUser() ? '@' + authenticatedUser()!.login : 'Not Signed In' }}</span>
+      </div>
+      <div class="font-mono opacity-80 text-[10px]">
+        <span>4000 : OK</span>
+      </div>
+    </div>
+  </footer>
+</div>

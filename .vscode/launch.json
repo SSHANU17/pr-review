@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run Extension (Gemini PR Reviewer)",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/vscode-plugin"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/vscode-plugin/dist/**/*.js"
+      ],
+      "preLaunchTask": "npm: compile (vscode-plugin)"
+    },
+    {
+      "name": "Start Web App & Review Engine (Port 3000)",
+      "type": "node",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"]
+    }
+  ]
+}

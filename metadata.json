@@ -1,0 +1,6 @@
+{
+  "name": "PR Code Reviewer AI Engine",
+  "description": "Production-grade full-stack automated GitHub Pull Request review system using Google AI Studio Gemini API and VS Code Extension.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

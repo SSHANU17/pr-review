@@ -1,0 +1,95 @@
+{
+  "name": "gemini-pr-code-reviewer",
+  "displayName": "Gemini PR Code Reviewer & SOLID Architect",
+  "description": "Autonomous AI code review and SOLID architecture analyzer for Pull Requests in VS Code powered by Google Gemini 3.7 Flash.",
+  "version": "1.3.0",
+  "publisher": "google-gemini",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Linters",
+    "Programming Languages",
+    "Other"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "geminiPrReviewer.reviewCurrentDiff",
+        "title": "Gemini: Review Current Git Diff & PR",
+        "category": "Gemini Architect",
+        "icon": "$(sparkle)"
+      },
+      {
+        "command": "geminiPrReviewer.manageCustomRules",
+        "title": "Gemini: Manage Architecture & SOLID Rules",
+        "category": "Gemini Architect",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "geminiPrReviewer.signInWithGitHub",
+        "title": "Gemini: Sign in with GitHub OAuth",
+        "category": "Gemini Architect",
+        "icon": "$(github)"
+      },
+      {
+        "command": "geminiPrReviewer.submitReviewToGitHub",
+        "title": "Gemini: Push Approved Review Comments to PR",
+        "category": "Gemini Architect",
+        "icon": "$(cloud-upload)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gemini-pr-reviewer",
+          "title": "Gemini PR Architect",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "gemini-pr-reviewer": [
+        {
+          "id": "geminiPrReviewerView",
+          "name": "Pull Request Review & SOLID Matrix"
+        },
+        {
+          "id": "geminiCustomRulesView",
+          "name": "Active Corporate Policies (Rule Engine)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Gemini PR Architect Settings",
+      "properties": {
+        "geminiPrReviewer.backendUrl": {
+          "type": "string",
+          "default": "http://localhost:3000/api",
+          "description": "Backend API gateway URL for Gemini AI analysis and rule sync."
+        },
+        "geminiPrReviewer.autoReviewOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically run diff analysis when saving files with uncommitted git changes."
+        },
+        "geminiPrReviewer.enableGutterGlyphs": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show interactive gutter icons on lines with AI architectural findings."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}
